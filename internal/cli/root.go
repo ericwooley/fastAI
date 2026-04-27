@@ -111,7 +111,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 			if err != nil {
 				return WrapRunError(err)
 			}
-			if err := account.Check(deps.Now()); err != nil {
+			if err := account.CheckForClient(deps.Now(), auth.CopilotClientID); err != nil {
 				return WrapRunError(err)
 			}
 			record, _, err := deps.SessionService.Start(cmd.Context(), appsession.StartOptions{RepoRoot: repoRoot, SessionID: sessionID, Model: model, Prompt: prompt})

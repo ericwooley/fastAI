@@ -55,7 +55,7 @@ func deps(t *testing.T, repo string, runner agent.Runner) cli.Dependencies {
 	config := t.TempDir()
 	return cli.Dependencies{
 		AuthStore:      auth.NewFileStore(filepath.Join(config, "auth.json")),
-		Authenticator:  auth.StaticAuthenticator{Account: auth.Account{Provider: auth.ProviderGitHubCopilot, AccessToken: "token", Login: "octo"}},
+		Authenticator:  auth.StaticAuthenticator{Account: auth.Account{Provider: auth.ProviderGitHubCopilot, AccessToken: "token", OAuthClientID: auth.CopilotClientID, Login: "octo"}},
 		SessionService: appsession.NewService(appsession.NewFileStore(filepath.Join(config, "sessions")), func() time.Time { return time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC) }),
 		Runner:         runner,
 		RepoRoot:       repo,

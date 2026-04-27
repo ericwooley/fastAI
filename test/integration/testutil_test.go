@@ -45,7 +45,7 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func account() auth.Account {
-	return auth.Account{Provider: auth.ProviderGitHubCopilot, AccessToken: "token", Login: "octo"}
+	return auth.Account{Provider: auth.ProviderGitHubCopilot, AccessToken: "token", OAuthClientID: auth.CopilotClientID, Login: "octo"}
 }
 
 func modelServer(t *testing.T, status int, body string) *httptest.Server {

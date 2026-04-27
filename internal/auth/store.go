@@ -16,6 +16,7 @@ const ProviderGitHubCopilot = "github-copilot"
 var (
 	ErrNoAccount = errors.New("no authenticated account")
 	ErrExpired   = errors.New("authenticated account expired")
+	ErrClientID  = errors.New("authenticated account was created for a different OAuth client")
 )
 
 type Account struct {
@@ -23,6 +24,7 @@ type Account struct {
 	UserID          string     `json:"user_id,omitempty"`
 	Login           string     `json:"login,omitempty"`
 	AccessToken     string     `json:"access_token"`
+	OAuthClientID   string     `json:"oauth_client_id,omitempty"`
 	Scopes          []string   `json:"scopes,omitempty"`
 	ExpiresAt       *time.Time `json:"expires_at,omitempty"`
 	LastValidatedAt time.Time  `json:"last_validated_at"`
@@ -82,6 +84,16 @@ func (a Account) Check(now time.Time) error {
 	}
 	if a.ExpiresAt != nil && !a.ExpiresAt.After(now) {
 		return ErrExpired
+	}
+	return nil
+}
+
+func (a Account) CheckForClient(now time.Time, clientID string) error {
+	if err := a.Check(now); err != nil {
+		return err
+	}
+	if strings.TrimSpace(clientID) != "" && a.OAuthClientID != clientID {
+		return ErrClientID
 	}
 	return nil
 }

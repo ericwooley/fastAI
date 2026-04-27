@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -47,20 +48,25 @@ func TestDeviceFlowLoginUsesGitHubOAuthShape(t *testing.T) {
 	t.Parallel()
 	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		if req.URL.Path == "/login/device/code" {
-			if err := req.ParseForm(); err != nil {
+			var body map[string]string
+			if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 				return nil, err
 			}
-			if req.Form.Get("client_id") != auth.CopilotClientID || req.Form.Get("scope") != "read:user" {
-				t.Fatalf("unexpected device form: %v", req.Form)
+			if req.Header.Get("Accept") != "application/json" || req.Header.Get("Content-Type") != "application/json" {
+				t.Fatalf("unexpected device headers: %v", req.Header)
+			}
+			if body["client_id"] != auth.CopilotClientID || body["scope"] != "read:user" {
+				t.Fatalf("unexpected device body: %v", body)
 			}
 			return response(200, `{"device_code":"dev","user_code":"ABC","verification_uri":"https://github.com/login/device","expires_in":1,"interval":0}`), nil
 		}
 		if req.URL.Path == "/login/oauth/access_token" {
-			if err := req.ParseForm(); err != nil {
+			var body map[string]string
+			if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 				return nil, err
 			}
-			if req.Form.Get("grant_type") != "urn:ietf:params:oauth:grant-type:device_code" {
-				t.Fatalf("unexpected token form: %v", req.Form)
+			if body["client_id"] != auth.CopilotClientID || body["device_code"] != "dev" || body["grant_type"] != "urn:ietf:params:oauth:grant-type:device_code" {
+				t.Fatalf("unexpected token body: %v", body)
 			}
 			return response(200, `{"access_token":"token","token_type":"bearer","scope":"read:user"}`), nil
 		}
@@ -70,12 +76,18 @@ func TestDeviceFlowLoginUsesGitHubOAuthShape(t *testing.T) {
 	if err != nil {
 		t.Fatalf("host: %v", err)
 	}
-	authenticator := &auth.DeviceFlowAuthenticator{ClientID: auth.CopilotClientID, Scopes: []string{"read:user"}, Host: host, HTTPClient: client, Now: time.Now}
+	authenticator := &auth.DeviceFlowAuthenticator{ClientID: auth.CopilotClientID, Host: host, HTTPClient: client, Now: time.Now}
 	account, err := authenticator.Login(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
 	if account.AccessToken != "token" {
 		t.Fatalf("token = %q", account.AccessToken)
+	}
+	if account.OAuthClientID != auth.CopilotClientID {
+		t.Fatalf("oauth client id = %q", account.OAuthClientID)
+	}
+	if strings.Join(account.Scopes, ",") != "read:user" {
+		t.Fatalf("scopes = %v", account.Scopes)
 	}
 }

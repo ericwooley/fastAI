@@ -53,26 +53,8 @@ func NewValidator(client *http.Client, baseURL string, userAgent string, opts ..
 }
 
 func (v *Validator) ValidateModel(ctx context.Context, token string, model string) error {
-	if strings.TrimSpace(model) == "" {
-		return errors.New("model is required")
-	}
-	if strings.TrimSpace(token) == "" {
-		return errors.New("GitHub Copilot token is required")
-	}
-	if v.offline {
-		return nil
-	}
-	models, err := v.ListModels(ctx, token)
-	if err != nil {
-		return err
-	}
-	want := normalizeModelID(model)
-	for _, available := range models {
-		if available == model || available == want {
-			return nil
-		}
-	}
-	return fmt.Errorf("model %q is not available for this account", model)
+	_, err := v.resolveModel(ctx, token, model)
+	return err
 }
 
 func (v *Validator) ListModels(ctx context.Context, token string) ([]string, error) {
@@ -95,6 +77,7 @@ func (v *Validator) ListModels(ctx context.Context, token string) ([]string, err
 	var payload struct {
 		Data []struct {
 			ID                 string `json:"id"`
+			Name               string `json:"name"`
 			ModelPickerEnabled *bool  `json:"model_picker_enabled"`
 			Policy             struct {
 				State string `json:"state"`
@@ -160,7 +143,11 @@ func (v *Validator) RunPrompt(ctx context.Context, token string, modelName strin
 	if strings.TrimSpace(prompt) == "" {
 		return "", errors.New("prompt is required")
 	}
-	llm := v.NewLLM(token, modelName)
+	resolvedModel, err := v.resolveModel(ctx, token, modelName)
+	if err != nil {
+		return "", err
+	}
+	llm := v.NewLLM(token, resolvedModel)
 	a, err := llmagent.New(llmagent.Config{
 		Name:        "fast_ai_copilot",
 		Description: "GitHub Copilot-backed non-interactive coding agent",
@@ -290,6 +277,111 @@ func messagesFromContents(contents []*genai.Content) []chatMessage {
 	return messages
 }
 
-func normalizeModelID(modelName string) string {
+type modelDescriptor struct {
+	ID   string
+	Name string
+}
+
+func (v *Validator) resolveModel(ctx context.Context, token string, requested string) (string, error) {
+	requested = sanitizeRequestedModel(requested)
+	if requested == "" {
+		return "", errors.New("model is required")
+	}
+	if strings.TrimSpace(token) == "" {
+		return "", errors.New("GitHub Copilot token is required")
+	}
+	if v.offline {
+		return requested, nil
+	}
+	models, err := v.listModelDescriptors(ctx, token)
+	if err != nil {
+		return "", err
+	}
+	wantedKeys := comparableModelKeys(requested)
+	for _, available := range models {
+		for key := range comparableModelKeys(available.ID) {
+			if _, ok := wantedKeys[key]; ok {
+				return available.ID, nil
+			}
+		}
+		for key := range comparableModelKeys(available.Name) {
+			if _, ok := wantedKeys[key]; ok {
+				return available.ID, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("model %q is not available for this account", requested)
+}
+
+func (v *Validator) listModelDescriptors(ctx context.Context, token string) ([]modelDescriptor, error) {
+	if strings.TrimSpace(token) == "" {
+		return nil, errors.New("GitHub Copilot token is required")
+	}
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, v.baseURL+"/models", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("User-Agent", v.userAgent)
+	resp, err := v.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("GitHub Copilot model list failed: %s", resp.Status)
+	}
+	var payload struct {
+		Data []struct {
+			ID                 string `json:"id"`
+			Name               string `json:"name"`
+			ModelPickerEnabled *bool  `json:"model_picker_enabled"`
+			Policy             struct {
+				State string `json:"state"`
+			} `json:"policy"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+	models := make([]modelDescriptor, 0, len(payload.Data))
+	for _, item := range payload.Data {
+		if item.ID == "" {
+			continue
+		}
+		if item.ModelPickerEnabled != nil && !*item.ModelPickerEnabled {
+			continue
+		}
+		if strings.EqualFold(item.Policy.State, "disabled") {
+			continue
+		}
+		models = append(models, modelDescriptor{ID: item.ID, Name: item.Name})
+	}
+	return models, nil
+}
+
+func sanitizeRequestedModel(modelName string) string {
 	return strings.TrimPrefix(strings.TrimSpace(modelName), "github:")
+}
+
+func normalizeModelID(modelName string) string {
+	return sanitizeRequestedModel(modelName)
+}
+
+func comparableModelKeys(modelName string) map[string]struct{} {
+	trimmed := strings.ToLower(strings.TrimSpace(modelName))
+	keys := map[string]struct{}{}
+	if trimmed == "" {
+		return keys
+	}
+	keys[trimmed] = struct{}{}
+	if strings.HasPrefix(trimmed, "github:") {
+		keys[strings.TrimPrefix(trimmed, "github:")] = struct{}{}
+	}
+	if strings.HasPrefix(trimmed, "openai/") {
+		keys[strings.TrimPrefix(trimmed, "openai/")] = struct{}{}
+	}
+	return keys
 }

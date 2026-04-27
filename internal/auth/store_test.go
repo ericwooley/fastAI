@@ -17,7 +17,7 @@ func TestFileStoreSaveLoadAndTokenState(t *testing.T) {
 	}
 
 	expires := time.Now().Add(time.Hour)
-	account := Account{AccessToken: "token", Login: "octo", ExpiresAt: &expires}
+	account := Account{AccessToken: "token", OAuthClientID: CopilotClientID, Login: "octo", ExpiresAt: &expires}
 	if err := store.Save(ctx, account); err != nil {
 		t.Fatalf("save: %v", err)
 	}
@@ -25,7 +25,7 @@ func TestFileStoreSaveLoadAndTokenState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	if loaded.Provider != ProviderGitHubCopilot || loaded.AccessToken != "token" || loaded.Login != "octo" {
+	if loaded.Provider != ProviderGitHubCopilot || loaded.AccessToken != "token" || loaded.OAuthClientID != CopilotClientID || loaded.Login != "octo" {
 		t.Fatalf("unexpected account: %+v", loaded)
 	}
 	if err := loaded.Check(time.Now()); err != nil {
@@ -33,5 +33,8 @@ func TestFileStoreSaveLoadAndTokenState(t *testing.T) {
 	}
 	if err := loaded.Check(expires.Add(time.Second)); !errors.Is(err, ErrExpired) {
 		t.Fatalf("expected expired, got %v", err)
+	}
+	if err := loaded.CheckForClient(time.Now(), "different-client"); !errors.Is(err, ErrClientID) {
+		t.Fatalf("expected client mismatch, got %v", err)
 	}
 }

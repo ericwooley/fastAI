@@ -13,11 +13,17 @@ import (
 
 func TestADKAdapterModelValidationFailureHandling(t *testing.T) {
 	t.Parallel()
-	server := modelServer(t, http.StatusOK, `{"data":[{"id":"enabled","model_picker_enabled":true},{"id":"disabled","model_picker_enabled":true,"policy":{"state":"disabled"}},{"id":"hidden","model_picker_enabled":false}]}`)
+	server := modelServer(t, http.StatusOK, `{"data":[{"id":"enabled","name":"enabled","model_picker_enabled":true},{"id":"openai/gpt-5-mini","name":"gpt-5-mini","model_picker_enabled":true},{"id":"disabled","name":"disabled","model_picker_enabled":true,"policy":{"state":"disabled"}},{"id":"hidden","name":"hidden","model_picker_enabled":false}]}`)
 	defer server.Close()
 	validator := githubmodels.NewValidator(server.Client(), server.URL, "fastAI/test")
 	if err := validator.ValidateModel(context.Background(), "token", "enabled"); err != nil {
 		t.Fatalf("enabled model: %v", err)
+	}
+	if err := validator.ValidateModel(context.Background(), "token", "gpt-5-mini"); err != nil {
+		t.Fatalf("alias model: %v", err)
+	}
+	if err := validator.ValidateModel(context.Background(), "token", "github:gpt-5-mini"); err != nil {
+		t.Fatalf("github alias model: %v", err)
 	}
 	if err := validator.ValidateModel(context.Background(), "token", "disabled"); err == nil {
 		t.Fatalf("expected disabled model failure")
@@ -30,6 +36,11 @@ func TestADKAdapterModelValidationFailureHandling(t *testing.T) {
 func TestADKAdapterRunsCopilotCompletionThroughADK(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/models" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"data":[{"id":"openai/gpt-4.1","name":"gpt-4.1","model_picker_enabled":true}]}`))
+			return
+		}
 		if r.URL.Path != "/chat/completions" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
@@ -54,7 +65,7 @@ func TestADKAdapterRunsCopilotCompletionThroughADK(t *testing.T) {
 		if err := json.Unmarshal(body, &payload); err != nil {
 			t.Fatalf("decode payload: %v", err)
 		}
-		if payload.Model != "gpt-4.1" || payload.Stream {
+		if payload.Model != "openai/gpt-4.1" || payload.Stream {
 			t.Fatalf("unexpected payload model/stream: %+v", payload)
 		}
 		if len(payload.Messages) == 0 || payload.Messages[len(payload.Messages)-1].Content != "summarize this" {

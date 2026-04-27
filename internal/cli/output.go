@@ -55,7 +55,7 @@ func CodeForError(err error) ExitCode {
 	if errors.As(err, &cliErr) {
 		return cliErr.Code
 	}
-	if errors.Is(err, auth.ErrNoAccount) || errors.Is(err, auth.ErrExpired) {
+	if errors.Is(err, auth.ErrNoAccount) || errors.Is(err, auth.ErrExpired) || errors.Is(err, auth.ErrClientID) {
 		return ExitAuth
 	}
 	if errors.Is(err, workspace.ErrUnsafePath) || errors.Is(err, commandexec.ErrBlocked) {
