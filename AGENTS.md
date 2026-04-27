@@ -11,3 +11,10 @@ All code should follow this standard:
 3. E2E code: This should be the final output, and we should test our full end to end setup here. It should be about 5% of the tests.
 
 All code must be thoroughly tested, and all tests must be very fast.
+
+## Active Technologies
+- Go 1.24.x + `github.com/spf13/cobra`, `github.com/cli/oauth`, `google.golang.org/adk`, Go standard library `net/http`/`os`/`os/exec`/`filepath` (001-copilot-cli-mvp)
+- Local filesystem state under the user's OS config directory for auth/session metadata, plus temporary runtime work under repository-safe temp directories (001-copilot-cli-mvp)
+
+## Recent Changes
+- 001-copilot-cli-mvp: Added Go 1.24.x + `github.com/spf13/cobra`, `github.com/cli/oauth`, `google.golang.org/adk`, Go standard library `net/http`/`os`/`os/exec`/`filepath`
