@@ -17,12 +17,12 @@
   the iteration process.
 -->
 
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]  
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]  
+**Language/Version**: [e.g., Go 1.24.x or NEEDS CLARIFICATION]  
+**Primary Dependencies**: [e.g., Cobra, github.com/google/adk-go, go-git or NEEDS CLARIFICATION]  
 **Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]  
-**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]  
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
-**Project Type**: [e.g., library/cli/web-service/mobile-app/compiler/desktop-app or NEEDS CLARIFICATION]  
+**Testing**: [e.g., go test ./..., table-driven unit tests, integration tests, CLI e2e or NEEDS CLARIFICATION]  
+**Target Platform**: [e.g., Linux/macOS/Windows CLI or NEEDS CLARIFICATION]
+**Project Type**: [e.g., Go CLI agent or NEEDS CLARIFICATION]  
 **Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
 **Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
 **Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
@@ -31,7 +31,12 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+- [ ] Go CLI product authority: plan targets a Go CLI binary and not an interactive app
+- [ ] Autonomous CLI agent contract: command surface, non-interactive flow, `--session` semantics, and `github.com/google/adk-go` usage are defined
+- [ ] Verification-first Go architecture: pure logic, glue code, and CLI e2e coverage are planned with fast tests
+- [ ] Minimal explicit Go change: design uses the smallest viable approach and justifies every new dependency or abstraction
+- [ ] Integration parity and session continuity: shared workflow changes identify OpenCode/Copilot sync work if needed
+- [ ] Repo-scope compliance: all paths, tools, and edits remain inside this repository
 
 ## Project Structure
 
@@ -56,17 +61,22 @@ specs/[###-feature]/
 -->
 
 ```text
-# [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
-src/
-├── models/
-├── services/
-├── cli/
-└── lib/
+# [REMOVE IF UNUSED] Option 1: Go CLI project (DEFAULT)
+cmd/
+└── fastAI/
 
-tests/
-├── contract/
+internal/
+├── agent/
+├── session/
+├── cli/
+└── [domain package]/
+
+pkg/
+└── [public package if truly required]
+
+test/
 ├── integration/
-└── unit/
+└── e2e/
 
 # [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
 backend/
@@ -91,8 +101,8 @@ ios/ or android/
 └── [platform-specific structure: feature modules, UI flows, platform tests]
 ```
 
-**Structure Decision**: [Document the selected structure and reference the real
-directories captured above]
+**Structure Decision**: [Document the selected Go package layout, the CLI entrypoint,
+session storage location, and where pure logic vs orchestration lives]
 
 ## Complexity Tracking
 

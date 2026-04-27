@@ -18,6 +18,8 @@
   - Tested independently
   - Deployed independently
   - Demonstrated to users independently
+  - Verified with an explicit automated or manual validation method
+  - Defined in terms of CLI inputs, outputs, exit codes, and persisted session behavior when applicable
 -->
 
 ### User Story 1 - [Brief Title] (Priority: P1)
@@ -72,8 +74,8 @@
   Fill them out with the right edge cases.
 -->
 
-- What happens when [boundary condition]?
-- How does system handle [error scenario]?
+- What happens when the user runs the CLI without a prompt argument?
+- How does the system handle an unknown, expired, or corrupted `--session` value?
 
 ## Requirements *(mandatory)*
 
@@ -84,16 +86,17 @@
 
 ### Functional Requirements
 
-- **FR-001**: System MUST [specific capability, e.g., "allow users to create accounts"]
-- **FR-002**: System MUST [specific capability, e.g., "validate email addresses"]  
-- **FR-003**: Users MUST be able to [key interaction, e.g., "reset their password"]
-- **FR-004**: System MUST [data requirement, e.g., "persist user preferences"]
-- **FR-005**: System MUST [behavior, e.g., "log all security events"]
+- **FR-001**: System MUST expose the feature through a Go CLI command contract.
+- **FR-002**: System MUST execute the requested agent workflow autonomously without interactive prompts.
+- **FR-003**: Users MUST be able to resume follow-up work with `--session=<identifier>`.
+- **FR-004**: System MUST persist enough session state to resume prior agent context safely.
+- **FR-005**: System MUST return explicit stdout/stderr output and exit codes for success and failure paths.
+- **FR-006**: System MUST use `github.com/google/adk-go` for all AI interactions.
 
 *Example of marking unclear requirements:*
 
-- **FR-006**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]
-- **FR-007**: System MUST retain user data for [NEEDS CLARIFICATION: retention period not specified]
+- **FR-007**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]
+- **FR-008**: System MUST retain user data for [NEEDS CLARIFICATION: retention period not specified]
 
 ### Key Entities *(include if feature involves data)*
 
@@ -114,6 +117,19 @@
 - **SC-003**: [User satisfaction metric, e.g., "90% of users successfully complete primary task on first attempt"]
 - **SC-004**: [Business metric, e.g., "Reduce support tickets related to [X] by 50%"]
 
+## Constitutional Alignment *(mandatory)*
+
+<!--
+  ACTION REQUIRED: Capture the repo-level constraints that downstream plan/tasks work
+  must satisfy.
+-->
+
+- **Repo Scope Impact**: [Which repository areas are expected to change, or state N/A]
+- **Verification Strategy**: [Describe pure-function tests, glue/integration tests, and CLI e2e coverage for each story]
+- **Integration Parity Impact**: [List OpenCode/Copilot/shared template updates required, or state N/A]
+- **CLI Contract Impact**: [Document prompt argument format, `--session` behavior, stdout/stderr contract, exit codes, and how `github.com/google/adk-go` is used]
+- **Complexity Justification**: [Note any required abstraction, compatibility layer, or state N/A]
+
 ## Assumptions
 
 <!--
@@ -123,6 +139,6 @@
 -->
 
 - [Assumption about target users, e.g., "Users have stable internet connectivity"]
-- [Assumption about scope boundaries, e.g., "Mobile support is out of scope for v1"]
-- [Assumption about data/environment, e.g., "Existing authentication system will be reused"]
-- [Dependency on existing system/service, e.g., "Requires access to the existing user profile API"]
+- [Assumption about scope boundaries, e.g., "Interactive prompts are out of scope for v1"]
+- [Assumption about data/environment, e.g., "Session state is stored locally and is available between CLI runs"]
+- [Dependency on existing system/service, e.g., "Requires access to `github.com/google/adk-go` and the configured model provider"]

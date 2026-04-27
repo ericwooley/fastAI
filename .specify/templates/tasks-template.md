@@ -8,7 +8,10 @@ description: "Task list template for feature implementation"
 **Input**: Design documents from `/specs/[###-feature-name]/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: The examples below include test tasks. Tests are OPTIONAL - only include them if explicitly requested in the feature specification.
+**Verification**: Include the smallest required verification tasks for each story. Use
+fast Go tests first, with coverage biased toward pure functions, then integration work,
+then CLI end-to-end validation. Add explicit manual validation only when automation is
+not enough.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -20,7 +23,7 @@ description: "Task list template for feature implementation"
 
 ## Path Conventions
 
-- **Single project**: `src/`, `tests/` at repository root
+- **Go CLI project**: `cmd/`, `internal/`, `pkg/`, `test/` at repository root
 - **Web app**: `backend/src/`, `frontend/src/`
 - **Mobile**: `api/src/`, `ios/src/` or `android/src/`
 - Paths shown below assume single project - adjust based on plan.md structure
@@ -49,7 +52,7 @@ description: "Task list template for feature implementation"
 **Purpose**: Project initialization and basic structure
 
 - [ ] T001 Create project structure per implementation plan
-- [ ] T002 Initialize [language] project with [framework] dependencies
+- [ ] T002 Initialize Go module, CLI entrypoint, and required dependencies
 - [ ] T003 [P] Configure linting and formatting tools
 
 ---
@@ -62,12 +65,12 @@ description: "Task list template for feature implementation"
 
 Examples of foundational tasks (adjust based on your project):
 
-- [ ] T004 Setup database schema and migrations framework
-- [ ] T005 [P] Implement authentication/authorization framework
-- [ ] T006 [P] Setup API routing and middleware structure
-- [ ] T007 Create base models/entities that all stories depend on
-- [ ] T008 Configure error handling and logging infrastructure
-- [ ] T009 Setup environment configuration management
+- [ ] T004 Define shared CLI command parsing and config loading
+- [ ] T005 [P] Implement session storage interface and persistence wiring
+- [ ] T006 [P] Define agent runner interface and `github.com/google/adk-go` backend wiring
+- [ ] T007 Create shared domain types and validation helpers
+- [ ] T008 Configure error handling and structured output behavior
+- [ ] T009 Setup environment and test fixtures for CLI execution
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -79,23 +82,25 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 1 (OPTIONAL - only if tests requested) ⚠️
+### Verification for User Story 1 ⚠️
 
-> **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
+> **NOTE: Define verification FIRST. When behavior changes, show the failing or missing
+> behavior before implementation.**
 
-- [ ] T010 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T011 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T010 [P] [US1] Add table-driven unit tests for pure logic in internal/[domain]/[name]_test.go
+- [ ] T011 [P] [US1] Add integration test for orchestration flow in test/integration/[name]_test.go
+- [ ] T012 [US1] Add CLI e2e test for primary command behavior in test/e2e/[name]_test.go
 
 ### Implementation for User Story 1
 
-- [ ] T012 [P] [US1] Create [Entity1] model in src/models/[entity1].py
-- [ ] T013 [P] [US1] Create [Entity2] model in src/models/[entity2].py
-- [ ] T014 [US1] Implement [Service] in src/services/[service].py (depends on T012, T013)
-- [ ] T015 [US1] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T016 [US1] Add validation and error handling
-- [ ] T017 [US1] Add logging for user story 1 operations
+- [ ] T013 [P] [US1] Implement pure domain logic in internal/[domain]/[name].go
+- [ ] T014 [P] [US1] Implement supporting types or validators in internal/[domain]/[name].go
+- [ ] T015 [US1] Implement orchestration layer in internal/agent/[name].go (depends on T013, T014)
+- [ ] T016 [US1] Implement CLI command behavior in internal/cli/[name].go
+- [ ] T017 [US1] Add validation and error handling for the CLI contract
+- [ ] T018 [US1] Wire entrypoint in cmd/fastAI/main.go
 
-**Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
+**Checkpoint**: At this point, User Story 1 MUST be fully functional and independently verified
 
 ---
 
@@ -105,19 +110,20 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 2 (OPTIONAL - only if tests requested) ⚠️
+### Verification for User Story 2 ⚠️
 
-- [ ] T018 [P] [US2] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T019 [P] [US2] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T019 [P] [US2] Add table-driven unit tests for session behavior in internal/session/[name]_test.go
+- [ ] T020 [P] [US2] Add integration test for resumed execution in test/integration/[name]_test.go
+- [ ] T021 [US2] Add CLI e2e test for `--session` continuation in test/e2e/[name]_test.go
 
 ### Implementation for User Story 2
 
-- [ ] T020 [P] [US2] Create [Entity] model in src/models/[entity].py
-- [ ] T021 [US2] Implement [Service] in src/services/[service].py
-- [ ] T022 [US2] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T023 [US2] Integrate with User Story 1 components (if needed)
+- [ ] T022 [P] [US2] Implement session model and persistence logic in internal/session/[name].go
+- [ ] T023 [US2] Implement follow-up orchestration in internal/agent/[name].go
+- [ ] T024 [US2] Implement CLI `--session` handling in internal/cli/[name].go
+- [ ] T025 [US2] Integrate resumed-session flow with User Story 1 behavior and `github.com/google/adk-go`
 
-**Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
+**Checkpoint**: At this point, User Stories 1 and 2 MUST both work and be independently verified
 
 ---
 
@@ -127,18 +133,19 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 3 (OPTIONAL - only if tests requested) ⚠️
+### Verification for User Story 3 ⚠️
 
-- [ ] T024 [P] [US3] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T025 [P] [US3] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T026 [P] [US3] Add table-driven unit tests for failure formatting in internal/[domain]/[name]_test.go
+- [ ] T027 [P] [US3] Add integration test for autonomous failure handling in test/integration/[name]_test.go
+- [ ] T028 [US3] Add CLI e2e test for non-interactive failure behavior in test/e2e/[name]_test.go
 
 ### Implementation for User Story 3
 
-- [ ] T026 [P] [US3] Create [Entity] model in src/models/[entity].py
-- [ ] T027 [US3] Implement [Service] in src/services/[service].py
-- [ ] T028 [US3] Implement [endpoint/feature] in src/[location]/[file].py
+- [ ] T029 [P] [US3] Implement failure classification logic in internal/[domain]/[name].go
+- [ ] T030 [US3] Implement autonomous error reporting in internal/agent/[name].go
+- [ ] T031 [US3] Implement stderr and exit-code handling in internal/cli/[name].go
 
-**Checkpoint**: All user stories should now be independently functional
+**Checkpoint**: All user stories MUST now be independently functional and verified
 
 ---
 
@@ -150,11 +157,12 @@ Examples of foundational tasks (adjust based on your project):
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] TXXX [P] Documentation updates in docs/
+- [ ] TXXX [P] Documentation updates for CLI usage and session behavior in docs/
 - [ ] TXXX Code cleanup and refactoring
 - [ ] TXXX Performance optimization across all stories
-- [ ] TXXX [P] Additional unit tests (if requested) in tests/unit/
+- [ ] TXXX [P] Additional unit tests in internal/.../*_test.go
 - [ ] TXXX Security hardening
+- [ ] TXXX [P] Verify `github.com/google/adk-go` integration behavior in automated tests
 - [ ] TXXX Run quickstart.md validation
 
 ---
@@ -173,14 +181,15 @@ Examples of foundational tasks (adjust based on your project):
 ### User Story Dependencies
 
 - **User Story 1 (P1)**: Can start after Foundational (Phase 2) - No dependencies on other stories
-- **User Story 2 (P2)**: Can start after Foundational (Phase 2) - May integrate with US1 but should be independently testable
-- **User Story 3 (P3)**: Can start after Foundational (Phase 2) - May integrate with US1/US2 but should be independently testable
+- **User Story 2 (P2)**: Can start after Foundational (Phase 2) - May integrate with US1 but MUST remain independently verifiable
+- **User Story 3 (P3)**: Can start after Foundational (Phase 2) - May integrate with US1/US2 but MUST remain independently verifiable
 
 ### Within Each User Story
 
-- Tests (if included) MUST be written and FAIL before implementation
-- Models before services
-- Services before endpoints
+- Verification tasks MUST be defined before implementation
+- When behavior changes, automated tests or equivalent checks MUST fail before implementation
+- Pure logic before orchestration
+- Orchestration before CLI wiring
 - Core implementation before integration
 - Story complete before moving to next priority
 
@@ -189,8 +198,8 @@ Examples of foundational tasks (adjust based on your project):
 - All Setup tasks marked [P] can run in parallel
 - All Foundational tasks marked [P] can run in parallel (within Phase 2)
 - Once Foundational phase completes, all user stories can start in parallel (if team capacity allows)
-- All tests for a user story marked [P] can run in parallel
-- Models within a story marked [P] can run in parallel
+- All Go verification tasks for a user story marked [P] can run in parallel
+- Pure-logic tasks within a story marked [P] can run in parallel
 - Different user stories can be worked on in parallel by different team members
 
 ---
@@ -198,13 +207,14 @@ Examples of foundational tasks (adjust based on your project):
 ## Parallel Example: User Story 1
 
 ```bash
-# Launch all tests for User Story 1 together (if tests requested):
-Task: "Contract test for [endpoint] in tests/contract/test_[name].py"
-Task: "Integration test for [user journey] in tests/integration/test_[name].py"
+# Launch verification work for User Story 1 together:
+Task: "Table-driven unit tests for pure logic in internal/[domain]/[name]_test.go"
+Task: "Integration test for orchestration flow in test/integration/[name]_test.go"
+Task: "CLI e2e test for primary command behavior in test/e2e/[name]_test.go"
 
 # Launch all models for User Story 1 together:
-Task: "Create [Entity1] model in src/models/[entity1].py"
-Task: "Create [Entity2] model in src/models/[entity2].py"
+Task: "Implement pure domain logic in internal/[domain]/[name].go"
+Task: "Implement supporting types or validators in internal/[domain]/[name].go"
 ```
 
 ---
@@ -244,8 +254,8 @@ With multiple developers:
 
 - [P] tasks = different files, no dependencies
 - [Story] label maps task to specific user story for traceability
-- Each user story should be independently completable and testable
-- Verify tests fail before implementing
+- Each user story MUST be independently completable and verifiable
+- Verify required checks fail, or otherwise demonstrate the missing behavior, before implementing
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
 - Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence
