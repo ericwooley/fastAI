@@ -18,8 +18,17 @@
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
+# Dependency directories
+vendor/
+
+# Local temporary files
+tmp/
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
 
 # Go workspace file
 go.work

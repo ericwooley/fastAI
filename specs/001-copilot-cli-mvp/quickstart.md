@@ -35,6 +35,7 @@ Expected flow:
 Expected behavior:
 - The run fails fast if `--model` or the prompt is missing.
 - The run uses non-interactive execution only.
+- Agent prompts are routed through the repository-local GitHub Copilot adapter and `google.golang.org/adk`.
 - File edits and commands stay within the active repository boundary.
 
 ## Continue a Prior Session
@@ -62,3 +63,6 @@ go test ./internal/...
 go test ./test/integration/...
 go test ./test/e2e/...
 ```
+
+Latest verification:
+- `go test ./...` passes with unit, integration, and CLI e2e coverage for login, required model validation, ADK-backed Copilot adapter behavior, safe file editing, command execution, and `--session` resume/error flows.

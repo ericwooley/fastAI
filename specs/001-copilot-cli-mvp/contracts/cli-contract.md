@@ -59,11 +59,14 @@ fastAI --model <model> [--session <identifier>] <prompt>
 
 ### Success output
 
-- Short execution summary
-- Session identifier used or created
-- Model used for the run
-- File change summary, if any
-- Command result summary, if any
+- Standard output MUST contain only the final model-facing response text.
+- Standard output MUST NOT include labels such as `Summary:`, session identifiers,
+  model identifiers, file summaries, command summaries, or operational status lines.
+- Standard error carries operational progress and run metadata.
+- `thinking: ` is reserved for model-emitted thought lines when the model returns them;
+  ordinary CLI metadata MUST NOT be prefixed with `thinking: `.
+- Standard error may include session identifier, model used, file change summary when
+  applicable, and command result summary when applicable.
 
 ### Failure output
 

@@ -21,9 +21,9 @@
 
 **Purpose**: Initialize the Go CLI project and create the file layout from the implementation plan.
 
-- [ ] T001 Initialize the Go module and required dependencies in `go.mod` and `go.sum`
-- [ ] T002 Create the CLI bootstrap entrypoints in `cmd/fastAI/main.go` and `internal/cli/root.go`
-- [ ] T003 Create the initial package scaffolding in `internal/auth/deviceflow.go`, `internal/agent/run.go`, `internal/session/service.go`, `internal/workspace/editor.go`, and `internal/commandexec/executor.go`
+- [X] T001 Initialize the Go module and required dependencies in `go.mod` and `go.sum`
+- [X] T002 Create the CLI bootstrap entrypoints in `cmd/fastAI/main.go` and `internal/cli/root.go`
+- [X] T003 Create the initial package scaffolding in `internal/auth/deviceflow.go`, `internal/agent/run.go`, `internal/session/service.go`, `internal/workspace/editor.go`, and `internal/commandexec/executor.go`
 
 ---
 
@@ -33,13 +33,13 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T004 Implement repository-root and config-directory path resolution in `internal/workspace/paths.go` and `internal/session/store.go`
-- [ ] T005 [P] Implement shared prompt/model/session validation helpers in `internal/cli/validate.go`
-- [ ] T006 [P] Implement exit-code mapping and shared CLI result formatting in `internal/cli/output.go`
-- [ ] T007 [P] Define file-backed authentication and session store interfaces in `internal/auth/store.go` and `internal/session/store.go`
-- [ ] T008 [P] Define the ADK runner interface and GitHub Models adapter seam in `internal/agent/runner.go` and `internal/agent/githubmodels/adapter.go`
-- [ ] T009 [P] Define shared session, run, and repository-key types in `internal/session/ids.go` and `internal/agent/run.go`
-- [ ] T010 Implement reusable test doubles and temporary repository helpers in `test/integration/testutil_test.go` and `test/e2e/testutil_test.go`
+- [X] T004 Implement repository-root and config-directory path resolution in `internal/workspace/paths.go` and `internal/session/store.go`
+- [X] T005 [P] Implement shared prompt/model/session validation helpers in `internal/cli/validate.go`
+- [X] T006 [P] Implement exit-code mapping and shared CLI result formatting in `internal/cli/output.go`
+- [X] T007 [P] Define file-backed authentication and session store interfaces in `internal/auth/store.go` and `internal/session/store.go`
+- [X] T008 [P] Define the ADK runner interface and GitHub Models adapter seam in `internal/agent/runner.go` and `internal/agent/githubmodels/adapter.go`
+- [X] T009 [P] Define shared session, run, and repository-key types in `internal/session/ids.go` and `internal/agent/run.go`
+- [X] T010 Implement reusable test doubles and temporary repository helpers in `test/integration/testutil_test.go` and `test/e2e/testutil_test.go`
 
 **Checkpoint**: Foundation ready - authenticated runs, workspace safety, session persistence, and ADK boundaries can now be implemented story by story.
 
@@ -53,18 +53,18 @@
 
 ### Verification for User Story 1 ⚠️
 
-- [ ] T011 [P] [US1] Add table-driven validation tests for missing prompt, missing `--model`, and invalid input handling in `internal/cli/validate_test.go`
-- [ ] T012 [P] [US1] Add unit tests for persisted account loading and token-state checks in `internal/auth/store_test.go`
-- [ ] T013 [P] [US1] Add integration coverage for device-flow login and authenticated run orchestration in `test/integration/login_run_test.go`
-- [ ] T014 [US1] Add CLI e2e coverage for `fastAI login` and a successful `fastAI --model ...` run in `test/e2e/login_run_test.go`
+- [X] T011 [P] [US1] Add table-driven validation tests for missing prompt, missing `--model`, and invalid input handling in `internal/cli/validate_test.go`
+- [X] T012 [P] [US1] Add unit tests for persisted account loading and token-state checks in `internal/auth/store_test.go`
+- [X] T013 [P] [US1] Add integration coverage for device-flow login and authenticated run orchestration in `test/integration/login_run_test.go`
+- [X] T014 [US1] Add CLI e2e coverage for `fastAI login` and a successful `fastAI --model ...` run in `test/e2e/login_run_test.go`
 
 ### Implementation for User Story 1
 
-- [ ] T015 [US1] Implement GitHub device-flow login and token persistence in `internal/auth/deviceflow.go`
-- [ ] T016 [P] [US1] Implement authenticated account loading and login command wiring in `internal/cli/login.go`
-- [ ] T017 [P] [US1] Implement baseline autonomous run orchestration and default session creation in `internal/agent/run.go`
-- [ ] T018 [US1] Implement the GitHub Models-backed ADK adapter for required model selection in `internal/agent/githubmodels/adapter.go`
-- [ ] T019 [US1] Wire root command execution and dependency construction in `internal/cli/root.go` and `cmd/fastAI/main.go`
+- [X] T015 [US1] Implement GitHub device-flow login and token persistence in `internal/auth/deviceflow.go`
+- [X] T016 [P] [US1] Implement authenticated account loading and login command wiring in `internal/cli/login.go`
+- [X] T017 [P] [US1] Implement baseline autonomous run orchestration and default session creation in `internal/agent/run.go`
+- [X] T018 [US1] Implement the GitHub Models-backed ADK adapter for required model selection in `internal/agent/githubmodels/adapter.go`
+- [X] T019 [US1] Wire root command execution and dependency construction in `internal/cli/root.go` and `cmd/fastAI/main.go`
 
 **Checkpoint**: User Story 1 MUST be fully functional and independently verified.
 
@@ -78,17 +78,17 @@
 
 ### Verification for User Story 2 ⚠️
 
-- [ ] T020 [P] [US2] Add table-driven tests for repository-bound path normalization and traversal blocking in `internal/workspace/paths_test.go`
-- [ ] T021 [P] [US2] Add unit tests for file create, update, delete, and summary behavior in `internal/workspace/editor_test.go` and `internal/workspace/summary_test.go`
-- [ ] T022 [P] [US2] Add integration coverage for workspace editing tool orchestration in `test/integration/file_edit_run_test.go`
-- [ ] T023 [US2] Add CLI e2e coverage for in-repo edits and blocked out-of-repo file requests in `test/e2e/file_edit_run_test.go`
+- [X] T020 [P] [US2] Add table-driven tests for repository-bound path normalization and traversal blocking in `internal/workspace/paths_test.go`
+- [X] T021 [P] [US2] Add unit tests for file create, update, delete, and summary behavior in `internal/workspace/editor_test.go` and `internal/workspace/summary_test.go`
+- [X] T022 [P] [US2] Add integration coverage for workspace editing tool orchestration in `test/integration/file_edit_run_test.go`
+- [X] T023 [US2] Add CLI e2e coverage for in-repo edits and blocked out-of-repo file requests in `test/e2e/file_edit_run_test.go`
 
 ### Implementation for User Story 2
 
-- [ ] T024 [P] [US2] Implement repository-safe file editing operations in `internal/workspace/editor.go`
-- [ ] T025 [P] [US2] Implement workspace change summaries for final CLI output in `internal/workspace/summary.go`
-- [ ] T026 [US2] Integrate workspace editing tools into the ADK run pipeline in `internal/agent/run.go`
-- [ ] T027 [US2] Surface file-change summaries and workspace safety failures in `internal/cli/output.go`
+- [X] T024 [P] [US2] Implement repository-safe file editing operations in `internal/workspace/editor.go`
+- [X] T025 [P] [US2] Implement workspace change summaries for final CLI output in `internal/workspace/summary.go`
+- [X] T026 [US2] Integrate workspace editing tools into the ADK run pipeline in `internal/agent/run.go`
+- [X] T027 [US2] Surface file-change summaries and workspace safety failures in `internal/cli/output.go`
 
 **Checkpoint**: User Stories 1 and 2 MUST both work and be independently verified.
 
@@ -102,17 +102,17 @@
 
 ### Verification for User Story 3 ⚠️
 
-- [ ] T028 [P] [US3] Add table-driven tests for session ID validation, repository-key matching, and resume rules in `internal/session/ids_test.go` and `internal/session/service_test.go`
-- [ ] T029 [P] [US3] Add unit tests for command execution result classification and non-zero exit handling in `internal/commandexec/executor_test.go`
-- [ ] T030 [P] [US3] Add integration coverage for resumed-session command execution flow in `test/integration/session_command_run_test.go`
-- [ ] T031 [US3] Add CLI e2e coverage for `--session` continuation and command failure reporting in `test/e2e/session_command_run_test.go`
+- [X] T028 [P] [US3] Add table-driven tests for session ID validation, repository-key matching, and resume rules in `internal/session/ids_test.go` and `internal/session/service_test.go`
+- [X] T029 [P] [US3] Add unit tests for command execution result classification and non-zero exit handling in `internal/commandexec/executor_test.go`
+- [X] T030 [P] [US3] Add integration coverage for resumed-session command execution flow in `test/integration/session_command_run_test.go`
+- [X] T031 [US3] Add CLI e2e coverage for `--session` continuation and command failure reporting in `test/e2e/session_command_run_test.go`
 
 ### Implementation for User Story 3
 
-- [ ] T032 [P] [US3] Implement session lifecycle management and persisted run history in `internal/session/service.go`
-- [ ] T033 [P] [US3] Implement repository-bound command execution with captured stdout, stderr, and exit status in `internal/commandexec/executor.go`
-- [ ] T034 [US3] Integrate session resumption and command execution tools into `internal/agent/run.go`
-- [ ] T035 [US3] Implement `--session` handling and command failure reporting in `internal/cli/root.go` and `internal/cli/output.go`
+- [X] T032 [P] [US3] Implement session lifecycle management and persisted run history in `internal/session/service.go`
+- [X] T033 [P] [US3] Implement repository-bound command execution with captured stdout, stderr, and exit status in `internal/commandexec/executor.go`
+- [X] T034 [US3] Integrate session resumption and command execution tools into `internal/agent/run.go`
+- [X] T035 [US3] Implement `--session` handling and command failure reporting in `internal/cli/root.go` and `internal/cli/output.go`
 
 **Checkpoint**: All user stories MUST now be independently functional and verified.
 
@@ -122,9 +122,9 @@
 
 **Purpose**: Final validation and improvements that affect multiple user stories.
 
-- [ ] T036 [P] Document login, required `--model`, and resumed-session usage in `specs/001-copilot-cli-mvp/quickstart.md`
-- [ ] T037 [P] Add automated coverage for ADK adapter failure handling in `test/integration/adk_adapter_test.go`
-- [ ] T038 Run `go test ./...` and record verification notes in `specs/001-copilot-cli-mvp/quickstart.md`
+- [X] T036 [P] Document login, required `--model`, and resumed-session usage in `specs/001-copilot-cli-mvp/quickstart.md`
+- [X] T037 [P] Add automated coverage for ADK adapter failure handling in `test/integration/adk_adapter_test.go`
+- [X] T038 Run `go test ./...` and record verification notes in `specs/001-copilot-cli-mvp/quickstart.md`
 
 ---
 
