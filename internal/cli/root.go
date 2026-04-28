@@ -90,6 +90,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 	var sessionID string
 	var providerName string
 	var verbose bool
+	var noSession bool
 	cmd := &cobra.Command{
 		Use:           "fastAI --model <model> [--provider <provider>] [--session <identifier>] <prompt>",
 		Short:         "Run an autonomous coding agent",
@@ -98,6 +99,9 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 		Args:          cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prompt := strings.Join(args, " ")
+			if noSession && strings.TrimSpace(sessionID) != "" {
+				return NewError(ExitValidation, "--no-session cannot be used with --session", "Remove one of the session flags and retry.")
+			}
 			input, err := ResolveRunInput(RunInput{Prompt: prompt, Model: model, SessionID: sessionID, Provider: providerName})
 			if err != nil {
 				return err
@@ -124,9 +128,17 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 				return WrapRunError(accountErr)
 			}
 
-			record, _, err := deps.SessionService.Start(cmd.Context(), appsession.StartOptions{RepoRoot: repoRoot, SessionID: sessionID, Model: model, Prompt: prompt})
-			if err != nil {
-				return WrapRunError(err)
+			var runSessionID string
+			var record appsession.Record
+			if noSession {
+				runSessionID = appsession.GenerateSessionID()
+			} else {
+				var err error
+				record, _, err = deps.SessionService.Start(cmd.Context(), appsession.StartOptions{RepoRoot: repoRoot, SessionID: sessionID, Model: model, Prompt: prompt})
+				if err != nil {
+					return WrapRunError(err)
+				}
+				runSessionID = record.SessionID
 			}
 
 			// Create per-request prompt runner for non-default providers
@@ -149,7 +161,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 			result, err := deps.Runner.Run(cmd.Context(), agent.Request{
 				Prompt:       prompt,
 				Model:        model,
-				SessionID:    record.SessionID,
+				SessionID:    runSessionID,
 				RepoRoot:     repoRoot,
 				AccessToken:  accessToken,
 				Provider:     input.Provider,
@@ -157,10 +169,14 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 				Progress:     newTelemetryProgress(deps.Err, verbose),
 			})
 			if err != nil {
-				_ = deps.SessionService.Fail(cmd.Context(), record, err.Error())
+				if !noSession {
+					_ = deps.SessionService.Fail(cmd.Context(), record, err.Error())
+				}
 				return WrapRunError(err)
 			}
-			if result.SessionID == "" {
+			if noSession {
+				result.SessionID = ""
+			} else if result.SessionID == "" {
 				result.SessionID = record.SessionID
 			}
 			if result.Model == "" {
@@ -169,8 +185,10 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 			if result.Provider == "" {
 				result.Provider = input.Provider
 			}
-			if err := deps.SessionService.Complete(cmd.Context(), record, result.Summary); err != nil {
-				return WrapRunError(err)
+			if !noSession {
+				if err := deps.SessionService.Complete(cmd.Context(), record, result.Summary); err != nil {
+					return WrapRunError(err)
+				}
 			}
 			FormatRunSuccess(deps.Out, deps.Err, result)
 			return nil
@@ -182,6 +200,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 	cmd.Flags().StringVar(&providerName, "provider", "", "AI provider to use (e.g., openai, openrouter, deepseek, github-copilot)")
 	cmd.Flags().StringVar(&sessionID, "session", "", "session identifier for follow-up work")
 	cmd.Flags().BoolVar(&verbose, "verbose", false, "show request timing and token usage on stderr")
+	cmd.Flags().BoolVar(&noSession, "no-session", false, "run without saving session history")
 	cmd.AddCommand(newLoginCommand(deps))
 	return cmd
 }

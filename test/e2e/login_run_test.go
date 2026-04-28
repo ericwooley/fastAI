@@ -2,12 +2,14 @@ package e2e_test
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/ericwooley/fastAI/internal/agent"
 	"github.com/ericwooley/fastAI/internal/auth"
+	appsession "github.com/ericwooley/fastAI/internal/session"
 )
 
 func TestCLILoginAndSuccessfulRun(t *testing.T) {
@@ -36,6 +38,44 @@ func TestCLILoginAndSuccessfulRun(t *testing.T) {
 	}
 	if _, err := auth.NewFileStore(filepath.Join(filepath.Dir(repo), "missing", "auth.json")).Load(context.Background()); err == nil {
 		t.Fatalf("sanity check expected missing auth")
+	}
+}
+
+func TestCLINoSessionRunDoesNotPersistHistory(t *testing.T) {
+	t.Parallel()
+	repo := tempRepo(t)
+	runner := &fakeRunner{result: agent.Result{Summary: "ok"}}
+	config := t.TempDir()
+	deps := deps(t, repo, runner)
+	deps.AuthStore = auth.NewFileStore(filepath.Join(config, "auth.json"))
+	deps.SessionService = appsession.NewService(appsession.NewFileStore(filepath.Join(config, "sessions")), deps.Now)
+	if err := deps.AuthStore.Save(context.Background(), auth.Account{Provider: auth.ProviderGitHubCopilot, AccessToken: "token", OAuthClientID: auth.CopilotClientID}); err != nil {
+		t.Fatalf("save auth: %v", err)
+	}
+
+	code, out, errOut := execute(t, []string{"--no-session", "--model", "github:gpt-4.1", "small task"}, deps)
+	if code != 0 || strings.TrimSpace(out) != "ok" || strings.Contains(errOut, "session:") {
+		t.Fatalf("run code=%d out=%q err=%q", code, out, errOut)
+	}
+	if len(runner.seen) != 1 || runner.seen[0].SessionID == "" {
+		t.Fatalf("runner saw unexpected request: %+v", runner.seen)
+	}
+	sessionsDir := filepath.Join(config, "sessions")
+	if entries, err := os.ReadDir(sessionsDir); err == nil && len(entries) != 0 {
+		t.Fatalf("expected no persisted sessions, got %d entries in %s", len(entries), sessionsDir)
+	}
+}
+
+func TestCLINoSessionRejectsExplicitSession(t *testing.T) {
+	t.Parallel()
+	repo := tempRepo(t)
+	runner := &fakeRunner{result: agent.Result{Summary: "ok"}}
+	code, _, errOut := execute(t, []string{"--no-session", "--session", "follow-up", "--model", "github:gpt-4.1", "small task"}, deps(t, repo, runner))
+	if code != 2 || !strings.Contains(errOut, "--no-session cannot be used with --session") {
+		t.Fatalf("code=%d err=%q", code, errOut)
+	}
+	if len(runner.seen) != 0 {
+		t.Fatalf("runner should not be called: %+v", runner.seen)
 	}
 }
 
