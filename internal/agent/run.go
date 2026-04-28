@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -222,7 +223,10 @@ func (r *LocalRunner) buildTools(ctx context.Context, result *Result) ([]adktool
 		commandResult, err := r.executor.Execute(ctx, commandexec.Request{CommandLine: args.Command, WorkingDir: args.WorkingDirectory})
 		result.CommandResults = append(result.CommandResults, CommandResult{CommandLine: commandResult.CommandLine, WorkingDir: commandResult.WorkingDir, ExitCode: commandResult.ExitCode, Stdout: commandResult.StdoutSummary, Stderr: commandResult.StderrSummary, Status: commandResult.Status})
 		if err != nil {
-			return commandToolResult{CommandLine: commandResult.CommandLine, WorkingDir: commandResult.WorkingDir, ExitCode: commandResult.ExitCode, Stdout: commandResult.StdoutSummary, Stderr: commandResult.StderrSummary, Status: commandResult.Status}, fmt.Errorf("run_command failed for %q: %w", args.Command, err)
+			if errors.Is(err, commandexec.ErrBlocked) {
+				return commandToolResult{CommandLine: commandResult.CommandLine, WorkingDir: commandResult.WorkingDir, ExitCode: commandResult.ExitCode, Stdout: commandResult.StdoutSummary, Stderr: commandResult.StderrSummary, Status: commandResult.Status}, fmt.Errorf("run_command blocked for %q: %w", args.Command, err)
+			}
+			return commandToolResult{CommandLine: commandResult.CommandLine, WorkingDir: commandResult.WorkingDir, ExitCode: commandResult.ExitCode, Stdout: commandResult.StdoutSummary, Stderr: commandResult.StderrSummary, Status: commandResult.Status}, nil
 		}
 		return commandToolResult{CommandLine: commandResult.CommandLine, WorkingDir: commandResult.WorkingDir, ExitCode: commandResult.ExitCode, Stdout: commandResult.StdoutSummary, Stderr: commandResult.StderrSummary, Status: commandResult.Status}, nil
 	})
@@ -249,8 +253,6 @@ func promptResultError(result Result) error {
 		switch strings.ToLower(command.Status) {
 		case "blocked":
 			return commandexec.ErrBlocked
-		case "failed":
-			return fmt.Errorf("%w: command %q exited with status %d", ErrExecution, command.CommandLine, command.ExitCode)
 		}
 	}
 	return nil
