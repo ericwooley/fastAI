@@ -2,7 +2,6 @@ package session
 
 import (
 	"context"
-	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -33,8 +32,12 @@ func TestServiceStartResumeAndRepoMatch(t *testing.T) {
 		t.Fatalf("unexpected resumed session: %+v resumed=%v", resumedRecord, resumed)
 	}
 
-	if _, _, err := service.Start(ctx, StartOptions{RepoRoot: repoB, SessionID: record.SessionID, Model: "m", Prompt: "bad"}); !errors.Is(err, ErrSessionNotFound) {
-		t.Fatalf("expected missing session for different repo namespace, got %v", err)
+	repoBRecord, resumed, err := service.Start(ctx, StartOptions{RepoRoot: repoB, SessionID: record.SessionID, Model: "m", Prompt: "bad"})
+	if err != nil {
+		t.Fatalf("start repo B explicit session: %v", err)
+	}
+	if resumed || repoBRecord.SessionID != record.SessionID || repoBRecord.RepoKey == record.RepoKey {
+		t.Fatalf("expected new repo-scoped session, got %+v resumed=%v", repoBRecord, resumed)
 	}
 }
 

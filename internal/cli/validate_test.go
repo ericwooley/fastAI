@@ -14,7 +14,6 @@ func TestValidateRunInput(t *testing.T) {
 		{name: "invalid provider", input: RunInput{Prompt: "do work", Model: "gpt-4.1", Provider: "anthropic"}, wantErr: true},
 		{name: "missing prompt", input: RunInput{Model: "github:gpt-4.1"}, wantErr: true},
 		{name: "missing model", input: RunInput{Prompt: "do work"}, wantErr: true},
-		{name: "invalid session", input: RunInput{Prompt: "do work", Model: "github:gpt-4.1", SessionID: "../bad"}, wantErr: true},
 		{name: "valid session", input: RunInput{Prompt: "do work", Model: "github:gpt-4.1", SessionID: "follow-up_1"}},
 	}
 
@@ -44,6 +43,11 @@ func TestResolveRunInput(t *testing.T) {
 			name:  "defaults to GitHub Copilot",
 			input: RunInput{Prompt: "do work", Model: "gpt-4.1"},
 			want:  RunInput{Prompt: "do work", Model: "gpt-4.1", Provider: "github-copilot"},
+		},
+		{
+			name:  "hashes explicit session",
+			input: RunInput{Prompt: "do work", Model: "gpt-4.1", SessionID: "follow"},
+			want:  RunInput{Prompt: "do work", Model: "gpt-4.1", SessionID: "a4010945e4bd924bc2a890a2effea0e6", Provider: "github-copilot"},
 		},
 		{
 			name:  "uses provider prefix",

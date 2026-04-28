@@ -105,6 +105,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 				return err
 			}
 			model = input.Model
+			sessionID = input.SessionID
 
 			repoRoot := deps.RepoRoot
 			if repoRoot == "" {

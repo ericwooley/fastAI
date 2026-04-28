@@ -1,6 +1,7 @@
 package session
 
 import (
+	"crypto/md5"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -28,6 +29,14 @@ func ValidateSessionID(id string) error {
 		return ErrInvalidSessionID
 	}
 	return nil
+}
+
+func HashSessionID(id string) string {
+	if strings.TrimSpace(id) == "" {
+		return ""
+	}
+	sum := md5.Sum([]byte(id))
+	return hex.EncodeToString(sum[:])
 }
 
 func GenerateSessionID() string {

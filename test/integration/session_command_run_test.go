@@ -20,19 +20,15 @@ func TestResumedSessionCommandExecutionFlow(t *testing.T) {
 	repo := tempRepo(t)
 	store := appsession.NewFileStore(filepath.Join(t.TempDir(), "sessions"))
 	service := appsession.NewService(store, time.Now)
-	record, resumed, err := service.Start(context.Background(), appsession.StartOptions{RepoRoot: repo, SessionID: "follow", Model: "github:gpt-4.1", Prompt: "first"})
-	if err == nil || resumed || record.SessionID != "" {
-		t.Fatalf("expected explicit missing session to fail, record=%+v resumed=%v err=%v", record, resumed, err)
-	}
-	record, _, err = service.Start(context.Background(), appsession.StartOptions{RepoRoot: repo, Model: "github:gpt-4.1", Prompt: "first"})
+	hashedSessionID := appsession.HashSessionID("follow")
+	record, resumed, err := service.Start(context.Background(), appsession.StartOptions{RepoRoot: repo, SessionID: hashedSessionID, Model: "github:gpt-4.1", Prompt: "first"})
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	record.SessionID = "follow"
-	if err := store.Save(context.Background(), record); err != nil {
-		t.Fatalf("save follow: %v", err)
+	if resumed || record.SessionID != hashedSessionID {
+		t.Fatalf("expected explicit session to auto-create, record=%+v resumed=%v", record, resumed)
 	}
-	resumedRecord, resumed, err := service.Start(context.Background(), appsession.StartOptions{RepoRoot: repo, SessionID: "follow", Model: "github:gpt-4.1", Prompt: "run command printf ok"})
+	resumedRecord, resumed, err := service.Start(context.Background(), appsession.StartOptions{RepoRoot: repo, SessionID: hashedSessionID, Model: "github:gpt-4.1", Prompt: "run command printf ok"})
 	if err != nil || !resumed {
 		t.Fatalf("resume: record=%+v resumed=%v err=%v", resumedRecord, resumed, err)
 	}

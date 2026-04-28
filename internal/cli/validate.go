@@ -17,6 +17,7 @@ type RunInput struct {
 func ResolveRunInput(input RunInput) (RunInput, error) {
 	input.Model = strings.TrimSpace(input.Model)
 	input.Provider = strings.TrimSpace(input.Provider)
+	input.SessionID = session.HashSessionID(input.SessionID)
 	prefixedProvider, modelID := provider.ParseModel(input.Model)
 	if prefixedProvider != "" {
 		if input.Provider != "" && input.Provider != prefixedProvider {

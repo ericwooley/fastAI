@@ -46,3 +46,16 @@ func TestRepoKeyStable(t *testing.T) {
 		t.Fatalf("repo key should be stable: %q %q", key1, key2)
 	}
 }
+
+func TestHashSessionID(t *testing.T) {
+	t.Parallel()
+	if got, want := HashSessionID("follow"), "a4010945e4bd924bc2a890a2effea0e6"; got != want {
+		t.Fatalf("HashSessionID() = %q, want %q", got, want)
+	}
+	if got, want := HashSessionID(" follow "), "a47de601e4a394e9c4566f140e91238f"; got != want {
+		t.Fatalf("HashSessionID() trim = %q, want %q", got, want)
+	}
+	if got := HashSessionID(""); got != "" {
+		t.Fatalf("HashSessionID(empty) = %q, want empty", got)
+	}
+}

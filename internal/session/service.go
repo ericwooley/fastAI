@@ -40,6 +40,21 @@ func (s *Service) Start(ctx context.Context, opts StartOptions) (Record, bool, e
 		}
 		record, err := s.store.Load(ctx, repoKey, opts.SessionID)
 		if err != nil {
+			if err == ErrSessionNotFound {
+				record = Record{
+					SessionID:  opts.SessionID,
+					RepoKey:    repoKey,
+					Model:      opts.Model,
+					Status:     StatusActive,
+					CreatedAt:  now,
+					UpdatedAt:  now,
+					LastPrompt: opts.Prompt,
+				}
+				if err := s.store.Save(ctx, record); err != nil {
+					return Record{}, false, err
+				}
+				return record, false, nil
+			}
 			return Record{}, false, err
 		}
 		record.Status = StatusActive
