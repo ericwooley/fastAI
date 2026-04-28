@@ -2,6 +2,68 @@
 
 A non-interactive, autonomous CLI coding agent backed by GitHub Copilot. Invoke it from your terminal inside any Git repository to delegate coding tasks—file edits, command execution, and session-persistent follow-up work.
 
+## Install
+
+### Option A — install with make (recommended)
+
+```bash
+git clone https://github.com/ericwooley/fastAI.git
+cd fastAI
+make build
+make install
+```
+
+This builds the binary and places it into your OS-appropriate user bin directory:
+
+| OS      | Default install dir               |
+|---------|-----------------------------------|
+| Linux   | `~/.local/bin`                    |
+| macOS   | `/usr/local/bin` (fallback: `~/.local/bin`) |
+| Windows | `%USERPROFILE%/bin` (fallback: `~/bin`)     |
+
+Override the destination with `FASTAI_INSTALL_DIR`:
+
+```bash
+FASTAI_INSTALL_DIR="$HOME/bin" make install
+```
+
+### Option B — build and move the binary manually
+
+```bash
+git clone https://github.com/ericwooley/fastAI.git
+cd fastAI
+make build
+```
+
+The compiled binary is at `tmp/bin/fastAI`. Move it anywhere on your `PATH`:
+
+```bash
+# Linux / macOS
+sudo mv tmp/bin/fastAI /usr/local/bin/
+
+# Or to your user-local bin
+mv tmp/bin/fastAI ~/.local/bin/
+
+# Windows (Git Bash / WSL)
+mv tmp/bin/fastAI ~/bin/
+```
+
+### Option C — go install
+
+```bash
+go install github.com/ericwooley/fastAI/cmd/fastAI@latest
+```
+
+Requires Go 1.24.x. The binary is placed in `$GOPATH/bin` or `~/go/bin`.
+
+---
+
+## Prerequisites
+
+- **Go 1.24.x**
+- A GitHub account with **GitHub Copilot** access
+- Run from inside a Git repository
+
 ## Dev Quickstart
 
 ```bash
@@ -36,47 +98,6 @@ make login
 - **Session persistence** — resume prior work with `--session <id>`
 - **Required model flag** — every run must specify `--model` (e.g., `github:gpt-4.1`)
 - **Repository safety** — all file and command operations are confined to the repo root
-
-## Prerequisites
-
-- **Go 1.24.x**
-- A GitHub account with **GitHub Copilot** access
-- Run from inside a Git repository
-
-## Install
-
-```bash
-go install github.com/ericwooley/fastAI/cmd/fastAI@latest
-```
-
-Install from the current checkout into the OS-appropriate user bin directory:
-
-```bash
-make install
-```
-
-The installer uses these default locations unless you override them:
-
-- Linux: `~/.local/bin`
-- macOS: `/usr/local/bin` when writable, otherwise `~/.local/bin`
-- Windows Git Bash/MSYS/Cygwin: `%USERPROFILE%/bin` when available, otherwise `~/bin`
-
-Override the destination when needed:
-
-```bash
-FASTAI_INSTALL_DIR="$HOME/bin" make install
-./scripts/install.sh --dir "$HOME/bin"
-```
-
-If the install directory is not already on `PATH`, the script prints a warning so you can add it to your shell profile.
-
-Or build from source:
-
-```bash
-git clone https://github.com/ericwooley/fastAI.git
-cd fastAI
-make build
-```
 
 ## Usage
 
