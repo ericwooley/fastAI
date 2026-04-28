@@ -39,7 +39,7 @@ func NewLocalRunnerWithPromptRunner(editor WorkspaceEditor, executor CommandExec
 }
 
 func (r *LocalRunner) Run(ctx context.Context, req Request) (Result, error) {
-	result := Result{SessionID: req.SessionID, Model: req.Model}
+	result := Result{SessionID: req.SessionID, Model: req.Model, Provider: req.Provider}
 	runPromptRunner := r.promptRunner
 	if req.PromptRunner != nil {
 		runPromptRunner = req.PromptRunner
@@ -70,7 +70,7 @@ func (r *LocalRunner) Run(ctx context.Context, req Request) (Result, error) {
 	}
 	if r.validator != nil {
 		if err := r.validator.ValidateModel(ctx, req.AccessToken, req.Model); err != nil {
-			return Result{SessionID: req.SessionID, Model: req.Model}, fmt.Errorf("%w: %v", ErrExecution, err)
+			return Result{SessionID: req.SessionID, Model: req.Model, Provider: req.Provider}, fmt.Errorf("%w: %v", ErrExecution, err)
 		}
 	}
 	for _, op := range parseFileOperations(req.Prompt) {

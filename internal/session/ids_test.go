@@ -13,7 +13,7 @@ func TestValidateSessionID(t *testing.T) {
 	}{
 		{id: "follow-up_1"},
 		{id: "session.name-2"},
-		{id: "" , wantErr: true},
+		{id: "", wantErr: true},
 		{id: "..", wantErr: true},
 		{id: "bad/path", wantErr: true},
 		{id: "bad\\path", wantErr: true},

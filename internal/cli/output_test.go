@@ -15,6 +15,7 @@ func TestFormatRunSuccessWritesOnlyModelOutputToStdout(t *testing.T) {
 	result := agent.Result{
 		Summary:   "Why don't scientists trust atoms?\nBecause they make up everything.",
 		SessionID: "session-1",
+		Provider:  "github-copilot",
 		Model:     "gpt-5-mini",
 		FileChanges: []agent.FileChange{{
 			Path:         "joke.txt",
@@ -45,7 +46,7 @@ func TestFormatRunSuccessWritesOnlyModelOutputToStdout(t *testing.T) {
 			t.Fatalf("stderr unexpectedly contains thinking prefix: %q in %q", line, errOut.String())
 		}
 	}
-	for _, want := range []string{"session: session-1", "model: gpt-5-mini", "file: applied update joke.txt (+42 bytes)", "command: go test ./... exit=0 status=succeeded"} {
+	for _, want := range []string{"session: session-1", "provider: github-copilot", "model: gpt-5-mini", "file: applied update joke.txt (+42 bytes)", "command: go test ./... exit=0 status=succeeded"} {
 		if !strings.Contains(errOut.String(), want) {
 			t.Fatalf("stderr missing %q in %q", want, errOut.String())
 		}

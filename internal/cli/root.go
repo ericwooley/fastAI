@@ -163,6 +163,9 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 			if result.Model == "" {
 				result.Model = model
 			}
+			if result.Provider == "" {
+				result.Provider = input.Provider
+			}
 			if err := deps.SessionService.Complete(cmd.Context(), record, result.Summary); err != nil {
 				return WrapRunError(err)
 			}

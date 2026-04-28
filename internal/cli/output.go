@@ -112,6 +112,7 @@ func FormatLoginSuccess(w io.Writer, account auth.Account) {
 func FormatRunSuccess(out io.Writer, thinking io.Writer, result agent.Result) {
 	writeStderr(thinking, "run completed successfully")
 	writeStderr(thinking, "session: %s", result.SessionID)
+	writeStderr(thinking, "provider: %s", result.Provider)
 	writeStderr(thinking, "model: %s", result.Model)
 	if out != nil && strings.TrimSpace(result.Summary) != "" {
 		fmt.Fprintln(out, result.Summary)

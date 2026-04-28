@@ -23,6 +23,7 @@ type Result struct {
 	Summary        string
 	SessionID      string
 	Model          string
+	Provider       string
 	FileChanges    []FileChange
 	CommandResults []CommandResult
 }

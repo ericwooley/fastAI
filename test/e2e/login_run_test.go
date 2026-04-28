@@ -20,7 +20,7 @@ func TestCLILoginAndSuccessfulRun(t *testing.T) {
 		t.Fatalf("login code=%d out=%q err=%q", code, out, errOut)
 	}
 	code, out, errOut = execute(t, []string{"--model", "github:gpt-4.1", "do work"}, deps)
-	if code != 0 || strings.TrimSpace(out) != "ok" || !strings.Contains(errOut, "session:") || !strings.Contains(errOut, "model: github:gpt-4.1") {
+	if code != 0 || strings.TrimSpace(out) != "ok" || !strings.Contains(errOut, "session:") || !strings.Contains(errOut, "provider: github-copilot") || !strings.Contains(errOut, "model: github:gpt-4.1") {
 		t.Fatalf("run code=%d out=%q err=%q", code, out, errOut)
 	}
 	if strings.Contains(errOut, "thinking: ") {
@@ -53,7 +53,7 @@ func TestCLIProviderPrefixedModelRun(t *testing.T) {
 	repo := tempRepo(t)
 	runner := &fakeRunner{result: agent.Result{Summary: "ok"}}
 	code, out, errOut := execute(t, []string{"--model", "openrouter/deepseek/deepseek-chat", "do work"}, deps(t, repo, runner))
-	if code != 0 || strings.TrimSpace(out) != "ok" || !strings.Contains(errOut, "model: deepseek/deepseek-chat") {
+	if code != 0 || strings.TrimSpace(out) != "ok" || !strings.Contains(errOut, "provider: openrouter") || !strings.Contains(errOut, "model: deepseek/deepseek-chat") {
 		t.Fatalf("run code=%d out=%q err=%q", code, out, errOut)
 	}
 	if len(runner.seen) != 1 {

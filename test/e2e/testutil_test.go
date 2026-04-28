@@ -34,6 +34,9 @@ func (r *fakeRunner) Run(_ context.Context, req agent.Request) (agent.Result, er
 	if r.result.SessionID == "" {
 		r.result.SessionID = req.SessionID
 	}
+	if r.result.Provider == "" {
+		r.result.Provider = req.Provider
+	}
 	if r.result.Model == "" {
 		r.result.Model = req.Model
 	}

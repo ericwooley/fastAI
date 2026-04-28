@@ -22,11 +22,11 @@ import (
 )
 
 type OpenAIProvider struct {
-	client        *http.Client
-	apiKey        string
-	baseURL       string
-	userAgent     string
-	extraHeaders  map[string]string
+	client       *http.Client
+	apiKey       string
+	baseURL      string
+	userAgent    string
+	extraHeaders map[string]string
 }
 
 type OpenAIOption func(*OpenAIProvider)

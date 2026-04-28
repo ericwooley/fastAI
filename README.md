@@ -2,6 +2,31 @@
 
 A non-interactive, autonomous CLI coding agent backed by GitHub Copilot. Invoke it from your terminal inside any Git repository to delegate coding tasks—file edits, command execution, and session-persistent follow-up work.
 
+## Dev Quickstart
+
+```bash
+make help                     # Show available targets
+make build                    # Build tmp/bin/fastAI
+make install                  # Install fastAI into your user bin directory
+make test                     # Run all tests
+make check                    # Format, vet, and test
+make run ARGS='--model github:gpt-4.1 "Refactor the auth module and add tests"'
+```
+
+Common focused test scopes:
+
+```bash
+make test-unit
+make test-integration
+make test-e2e
+```
+
+Authenticate the local build when you need real Copilot-backed runs:
+
+```bash
+make login
+```
+
 ## Features
 
 - **GitHub Copilot authentication** via OAuth device flow (`fastAI login`)
@@ -24,12 +49,33 @@ A non-interactive, autonomous CLI coding agent backed by GitHub Copilot. Invoke 
 go install github.com/ericwooley/fastAI/cmd/fastAI@latest
 ```
 
+Install from the current checkout into the OS-appropriate user bin directory:
+
+```bash
+make install
+```
+
+The installer uses these default locations unless you override them:
+
+- Linux: `~/.local/bin`
+- macOS: `/usr/local/bin` when writable, otherwise `~/.local/bin`
+- Windows Git Bash/MSYS/Cygwin: `%USERPROFILE%/bin` when available, otherwise `~/bin`
+
+Override the destination when needed:
+
+```bash
+FASTAI_INSTALL_DIR="$HOME/bin" make install
+./scripts/install.sh --dir "$HOME/bin"
+```
+
+If the install directory is not already on `PATH`, the script prints a warning so you can add it to your shell profile.
+
 Or build from source:
 
 ```bash
 git clone https://github.com/ericwooley/fastAI.git
 cd fastAI
-go build ./cmd/fastAI
+make build
 ```
 
 ## Usage
@@ -69,17 +115,18 @@ fastAI --model github:gpt-4.1 --session my-task "Now add error handling"
 ## Build & Test
 
 ```bash
-go build ./cmd/fastAI      # Build the binary
-go test ./...              # Run all tests (unit + integration + e2e)
-go vet ./...               # Static analysis
+make build                 # Build tmp/bin/fastAI
+make test                  # Run all tests (unit + integration + e2e)
+make vet                   # Static analysis
+make check                 # Format, vet, and test
 ```
 
 Test scopes:
 
 ```bash
-go test ./internal/...     # Unit tests (pure logic)
-go test ./test/integration/...  # Integration tests (glue code)
-go test ./test/e2e/...     # End-to-end CLI tests
+make test-unit             # Unit tests (pure logic)
+make test-integration      # Integration tests (glue code)
+make test-e2e              # End-to-end CLI tests
 ```
 
 ## Project Structure
