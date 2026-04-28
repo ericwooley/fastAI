@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 
 	"github.com/ericwooley/fastAI/internal/agent"
@@ -129,6 +130,75 @@ func FormatRunSuccess(out io.Writer, thinking io.Writer, result agent.Result) {
 			writeStderr(thinking, "stderr: %s", command.Stderr)
 		}
 	}
+}
+
+func newTelemetryProgress(w io.Writer) func(agent.ProviderRequestTelemetry) {
+	var count int
+	return func(request agent.ProviderRequestTelemetry) {
+		count++
+		formatTelemetryRequest(w, count, request)
+	}
+}
+
+func formatTelemetryRequest(w io.Writer, number int, request agent.ProviderRequestTelemetry) {
+	writeStderr(w, "request: #%d provider=%s model=%s endpoint=%s duration=%s", number, request.Provider, request.Model, request.Endpoint, request.Duration)
+	if usage := formatUsage(request.Usage); usage != "" {
+		writeStderr(w, "tokens: %s", usage)
+	}
+	for _, call := range request.ToolCalls {
+		line := fmt.Sprintf("tool call: %s", call.Name)
+		if strings.TrimSpace(call.ID) != "" {
+			line += " id=" + strings.TrimSpace(call.ID)
+		}
+		if strings.TrimSpace(call.Arguments) != "" {
+			line += " args=" + strings.TrimSpace(call.Arguments)
+		}
+		writeStderr(w, "%s", line)
+	}
+}
+
+func formatUsage(usage map[string]any) string {
+	if len(usage) == 0 {
+		return ""
+	}
+	values := flattenUsage("", usage)
+	parts := make([]string, 0, len(values))
+	for key, value := range values {
+		parts = append(parts, key+"="+value)
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, " ")
+}
+
+func flattenUsage(prefix string, usage map[string]any) map[string]string {
+	values := map[string]string{}
+	for key, raw := range usage {
+		name := key
+		if prefix != "" {
+			name = prefix + "." + key
+		}
+		switch value := raw.(type) {
+		case map[string]any:
+			for nestedKey, nestedValue := range flattenUsage(name, value) {
+				values[nestedKey] = nestedValue
+			}
+		case float64:
+			values[name] = fmt.Sprintf("%.0f", value)
+		case float32:
+			values[name] = fmt.Sprintf("%.0f", value)
+		case int:
+			values[name] = fmt.Sprintf("%d", value)
+		case int64:
+			values[name] = fmt.Sprintf("%d", value)
+		case string:
+			if strings.TrimSpace(value) != "" {
+				values[name] = strings.TrimSpace(value)
+			}
+		case bool:
+			values[name] = fmt.Sprintf("%t", value)
+		}
+	}
+	return values
 }
 
 func writeStderr(w io.Writer, format string, args ...any) {

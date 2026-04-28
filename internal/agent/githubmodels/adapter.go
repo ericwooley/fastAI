@@ -108,6 +108,8 @@ type LLM struct {
 	validator *Validator
 	token     string
 	modelName string
+	telemetry appagent.ProviderTelemetry
+	progress  func(appagent.ProviderRequestTelemetry)
 }
 
 func (v *Validator) NewLLM(token string, modelName string) *LLM {
@@ -131,11 +133,15 @@ func (l *LLM) GenerateContent(ctx context.Context, req *model.LLMRequest, stream
 		if modelName == "" {
 			modelName = l.Name()
 		}
-		message, err := l.validator.complete(ctx, l.token, modelName, chatCompletionRequest{
+		message, telemetry, err := l.validator.complete(ctx, l.token, modelName, chatCompletionRequest{
 			Messages:   messagesFromContents(req.Config, req.Contents),
 			Tools:      toolsFromConfig(req.Config),
 			ToolChoice: toolChoiceFromConfig(req.Config),
 		})
+		l.telemetry.Requests = append(l.telemetry.Requests, telemetry)
+		if l.progress != nil {
+			l.progress(telemetry)
+		}
 		if err != nil {
 			yield(nil, err)
 			return
@@ -149,18 +155,19 @@ func (l *LLM) GenerateContent(ctx context.Context, req *model.LLMRequest, stream
 	}
 }
 
-func (v *Validator) RunPrompt(ctx context.Context, req appagent.PromptRunRequest) (string, error) {
+func (v *Validator) RunPrompt(ctx context.Context, req appagent.PromptRunRequest) (appagent.PromptRunResult, error) {
 	if strings.TrimSpace(req.Prompt) == "" {
-		return "", errors.New("prompt is required")
+		return appagent.PromptRunResult{}, errors.New("prompt is required")
 	}
 	if strings.TrimSpace(req.AccessToken) == "" {
-		return "", errors.New("GitHub Copilot token is required")
+		return appagent.PromptRunResult{}, errors.New("GitHub Copilot token is required")
 	}
 	modelName := normalizeModelID(req.Model)
 	if modelName == "" {
-		return "", errors.New("model is required")
+		return appagent.PromptRunResult{}, errors.New("model is required")
 	}
 	llm := v.NewLLM(req.AccessToken, modelName)
+	llm.progress = req.Progress
 	sessionID := strings.TrimSpace(req.SessionID)
 	if sessionID == "" {
 		sessionID = "copilot-run"
@@ -173,20 +180,20 @@ func (v *Validator) RunPrompt(ctx context.Context, req appagent.PromptRunRequest
 		Tools:       req.Tools,
 	})
 	if err != nil {
-		return "", err
+		return appagent.PromptRunResult{}, err
 	}
 	service := adksession.InMemoryService()
 	if _, err := service.Create(ctx, &adksession.CreateRequest{AppName: "fastAI", UserID: "local", SessionID: sessionID}); err != nil {
-		return "", err
+		return appagent.PromptRunResult{}, err
 	}
 	r, err := runner.New(runner.Config{AppName: "fastAI", Agent: a, SessionService: service})
 	if err != nil {
-		return "", err
+		return appagent.PromptRunResult{}, err
 	}
 	var parts []string
 	for event, err := range r.Run(ctx, "local", sessionID, genai.NewContentFromText(req.Prompt, genai.RoleUser), adkagent.RunConfig{}) {
 		if err != nil {
-			return "", err
+			return appagent.PromptRunResult{Telemetry: llm.telemetry}, err
 		}
 		if event == nil || event.LLMResponse.Content == nil {
 			continue
@@ -201,9 +208,9 @@ func (v *Validator) RunPrompt(ctx context.Context, req appagent.PromptRunRequest
 		}
 	}
 	if len(parts) == 0 {
-		return "", errors.New("GitHub Copilot returned no text response")
+		return appagent.PromptRunResult{Telemetry: llm.telemetry}, errors.New("GitHub Copilot returned no text response")
 	}
-	return strings.Join(parts, "\n"), nil
+	return appagent.PromptRunResult{Text: strings.Join(parts, "\n"), Telemetry: llm.telemetry}, nil
 }
 
 type chatMessage struct {
@@ -242,15 +249,16 @@ type chatCompletionRequest struct {
 	ToolChoice any
 }
 
-func (v *Validator) complete(ctx context.Context, token string, modelName string, request chatCompletionRequest) (chatMessage, error) {
+func (v *Validator) complete(ctx context.Context, token string, modelName string, request chatCompletionRequest) (chatMessage, appagent.ProviderRequestTelemetry, error) {
+	telemetry := appagent.ProviderRequestTelemetry{Provider: "github-copilot", Model: normalizeModelID(modelName), Endpoint: "/chat/completions"}
 	if strings.TrimSpace(token) == "" {
-		return chatMessage{}, errors.New("GitHub Copilot token is required")
+		return chatMessage{}, telemetry, errors.New("GitHub Copilot token is required")
 	}
 	if strings.TrimSpace(modelName) == "" {
-		return chatMessage{}, errors.New("model is required")
+		return chatMessage{}, telemetry, errors.New("model is required")
 	}
 	if len(request.Messages) == 0 {
-		return chatMessage{}, errors.New("prompt is required")
+		return chatMessage{}, telemetry, errors.New("prompt is required")
 	}
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
@@ -263,24 +271,26 @@ func (v *Validator) complete(ctx context.Context, token string, modelName string
 	}{Model: normalizeModelID(modelName), Messages: request.Messages, Tools: request.Tools, ToolChoice: request.ToolChoice, Stream: false}
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return chatMessage{}, err
+		return chatMessage{}, telemetry, err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, v.baseURL+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
-		return chatMessage{}, err
+		return chatMessage{}, telemetry, err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", v.userAgent)
 	req.Header.Set("Openai-Intent", "conversation-edits")
 	req.Header.Set("x-initiator", "agent")
+	started := time.Now()
 	resp, err := v.client.Do(req)
+	telemetry.Duration = time.Since(started)
 	if err != nil {
-		return chatMessage{}, err
+		return chatMessage{}, telemetry, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return chatMessage{}, fmt.Errorf("GitHub Copilot completion failed: %s", resp.Status)
+		return chatMessage{}, telemetry, fmt.Errorf("GitHub Copilot completion failed: %s", resp.Status)
 	}
 	var response struct {
 		Choices []struct {
@@ -289,19 +299,30 @@ func (v *Validator) complete(ctx context.Context, token string, modelName string
 		Error struct {
 			Message string `json:"message"`
 		} `json:"error"`
+		Usage map[string]any `json:"usage"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return chatMessage{}, err
+		return chatMessage{}, telemetry, err
 	}
+	telemetry.Usage = response.Usage
 	if response.Error.Message != "" {
-		return chatMessage{}, errors.New(response.Error.Message)
+		return chatMessage{}, telemetry, errors.New(response.Error.Message)
 	}
 	for _, choice := range response.Choices {
 		if hasMessageContent(choice.Message) {
-			return choice.Message, nil
+			telemetry.ToolCalls = toolCallTelemetry(choice.Message.ToolCalls)
+			return choice.Message, telemetry, nil
 		}
 	}
-	return chatMessage{}, errors.New("GitHub Copilot returned no completion choices")
+	return chatMessage{}, telemetry, errors.New("GitHub Copilot returned no completion choices")
+}
+
+func toolCallTelemetry(calls []chatToolCall) []appagent.ToolCallTelemetry {
+	items := make([]appagent.ToolCallTelemetry, 0, len(calls))
+	for _, call := range calls {
+		items = append(items, appagent.ToolCallTelemetry{ID: strings.TrimSpace(call.ID), Name: strings.TrimSpace(call.Function.Name), Arguments: strings.TrimSpace(call.Function.Arguments)})
+	}
+	return items
 }
 
 func messagesFromContents(config *genai.GenerateContentConfig, contents []*genai.Content) []chatMessage {

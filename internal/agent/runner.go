@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"time"
 
 	adktool "google.golang.org/adk/tool"
 )
@@ -17,6 +18,7 @@ type Request struct {
 	AccessToken  string
 	Provider     string
 	PromptRunner PromptRunner
+	Progress     func(ProviderRequestTelemetry)
 }
 
 type Result struct {
@@ -26,6 +28,26 @@ type Result struct {
 	Provider       string
 	FileChanges    []FileChange
 	CommandResults []CommandResult
+	Telemetry      ProviderTelemetry
+}
+
+type ProviderTelemetry struct {
+	Requests []ProviderRequestTelemetry
+}
+
+type ProviderRequestTelemetry struct {
+	Provider  string
+	Model     string
+	Endpoint  string
+	Duration  time.Duration
+	Usage     map[string]any
+	ToolCalls []ToolCallTelemetry
+}
+
+type ToolCallTelemetry struct {
+	ID        string
+	Name      string
+	Arguments string
 }
 
 type FileChange struct {
@@ -54,7 +76,12 @@ type ModelValidator interface {
 }
 
 type PromptRunner interface {
-	RunPrompt(context.Context, PromptRunRequest) (string, error)
+	RunPrompt(context.Context, PromptRunRequest) (PromptRunResult, error)
+}
+
+type PromptRunResult struct {
+	Text      string
+	Telemetry ProviderTelemetry
 }
 
 type PromptRunRequest struct {
@@ -64,4 +91,5 @@ type PromptRunRequest struct {
 	SessionID   string
 	Instruction string
 	Tools       []adktool.Tool
+	Progress    func(ProviderRequestTelemetry)
 }

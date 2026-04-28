@@ -101,7 +101,7 @@ func TestADKAdapterRunsToolAwareCompletionThroughADK(t *testing.T) {
 				t.Fatalf("unexpected first messages: %+v", payload.Messages)
 			}
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","tool_calls":[{"id":"call-1","type":"function","function":{"name":"echo_tool","arguments":"{\"value\":\"from model\"}"}}]}}]}`))
+			_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","tool_calls":[{"id":"call-1","type":"function","function":{"name":"echo_tool","arguments":"{\"value\":\"from model\"}"}}]}}],"usage":{"prompt_tokens":12,"completion_tokens":4,"total_tokens":16,"prompt_tokens_details":{"cached_tokens":3}}}`))
 			return
 		case 2:
 			if len(payload.Messages) < 4 {
@@ -144,7 +144,7 @@ func TestADKAdapterRunsToolAwareCompletionThroughADK(t *testing.T) {
 	}
 
 	adapter := githubmodels.NewValidator(server.Client(), server.URL, "fastAI/test")
-	text, err := adapter.RunPrompt(context.Background(), appagent.PromptRunRequest{
+	result, err := adapter.RunPrompt(context.Background(), appagent.PromptRunRequest{
 		AccessToken: "token",
 		Model:       "github:gpt-4.1",
 		Prompt:      "summarize this",
@@ -155,7 +155,20 @@ func TestADKAdapterRunsToolAwareCompletionThroughADK(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run prompt: %v", err)
 	}
-	if text != "completed through ADK tool flow" {
-		t.Fatalf("unexpected text: %q", text)
+	if result.Text != "completed through ADK tool flow" {
+		t.Fatalf("unexpected text: %q", result.Text)
+	}
+	if len(result.Telemetry.Requests) != 2 {
+		t.Fatalf("telemetry requests = %+v", result.Telemetry.Requests)
+	}
+	first := result.Telemetry.Requests[0]
+	if first.Endpoint != "/chat/completions" || first.Model != "gpt-4.1" || first.Duration <= 0 {
+		t.Fatalf("unexpected first request telemetry: %+v", first)
+	}
+	if len(first.ToolCalls) != 1 || first.ToolCalls[0].Name != "echo_tool" || !strings.Contains(first.ToolCalls[0].Arguments, "from model") {
+		t.Fatalf("unexpected tool telemetry: %+v", first.ToolCalls)
+	}
+	if first.Usage["total_tokens"] != float64(16) {
+		t.Fatalf("unexpected usage telemetry: %+v", first.Usage)
 	}
 }

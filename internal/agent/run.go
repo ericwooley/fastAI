@@ -49,16 +49,18 @@ func (r *LocalRunner) Run(ctx context.Context, req Request) (Result, error) {
 		if err != nil {
 			return result, fmt.Errorf("%w: %v", ErrExecution, err)
 		}
-		text, err := runPromptRunner.RunPrompt(ctx, PromptRunRequest{
+		promptResult, err := runPromptRunner.RunPrompt(ctx, PromptRunRequest{
 			AccessToken: req.AccessToken,
 			Model:       req.Model,
 			Prompt:      req.Prompt,
 			SessionID:   req.SessionID,
 			Instruction: defaultInstruction(),
 			Tools:       tools,
+			Progress:    req.Progress,
 		})
-		if strings.TrimSpace(text) != "" {
-			result.Summary = strings.TrimSpace(text)
+		result.Telemetry = promptResult.Telemetry
+		if strings.TrimSpace(promptResult.Text) != "" {
+			result.Summary = strings.TrimSpace(promptResult.Text)
 		}
 		if err != nil {
 			return result, fmt.Errorf("%w: %v", ErrExecution, err)

@@ -61,11 +61,12 @@ func NewOpenAI(client *http.Client, apiKey string, baseURL string, userAgent str
 
 func (p *OpenAIProvider) BaseURL() string { return p.baseURL }
 
-func (p *OpenAIProvider) RunPrompt(ctx context.Context, req agent.PromptRunRequest) (string, error) {
+func (p *OpenAIProvider) RunPrompt(ctx context.Context, req agent.PromptRunRequest) (agent.PromptRunResult, error) {
 	if strings.TrimSpace(req.Prompt) == "" {
-		return "", errors.New("prompt is required")
+		return agent.PromptRunResult{}, errors.New("prompt is required")
 	}
 	llm := newOpenAILLM(p, req.Model)
+	llm.progress = req.Progress
 	sessionID := strings.TrimSpace(req.SessionID)
 	if sessionID == "" {
 		sessionID = "fastai-run"
@@ -78,20 +79,20 @@ func (p *OpenAIProvider) RunPrompt(ctx context.Context, req agent.PromptRunReque
 		Tools:       req.Tools,
 	})
 	if err != nil {
-		return "", err
+		return agent.PromptRunResult{}, err
 	}
 	service := adksession.InMemoryService()
 	if _, err := service.Create(ctx, &adksession.CreateRequest{AppName: "fastAI", UserID: "local", SessionID: sessionID}); err != nil {
-		return "", err
+		return agent.PromptRunResult{}, err
 	}
 	r, err := runner.New(runner.Config{AppName: "fastAI", Agent: a, SessionService: service})
 	if err != nil {
-		return "", err
+		return agent.PromptRunResult{}, err
 	}
 	var parts []string
 	for event, err := range r.Run(ctx, "local", sessionID, genai.NewContentFromText(req.Prompt, genai.RoleUser), adkagent.RunConfig{}) {
 		if err != nil {
-			return "", err
+			return agent.PromptRunResult{Telemetry: llm.telemetry}, err
 		}
 		if event == nil || event.LLMResponse.Content == nil {
 			continue
@@ -106,14 +107,16 @@ func (p *OpenAIProvider) RunPrompt(ctx context.Context, req agent.PromptRunReque
 		}
 	}
 	if len(parts) == 0 {
-		return "", errors.New("model returned no text response")
+		return agent.PromptRunResult{Telemetry: llm.telemetry}, errors.New("model returned no text response")
 	}
-	return strings.Join(parts, "\n"), nil
+	return agent.PromptRunResult{Text: strings.Join(parts, "\n"), Telemetry: llm.telemetry}, nil
 }
 
 type openAILLM struct {
 	provider  *OpenAIProvider
 	modelName string
+	telemetry agent.ProviderTelemetry
+	progress  func(agent.ProviderRequestTelemetry)
 }
 
 func newOpenAILLM(p *OpenAIProvider, modelName string) *openAILLM {
@@ -137,11 +140,15 @@ func (l *openAILLM) GenerateContent(ctx context.Context, req *model.LLMRequest, 
 		if modelName == "" {
 			modelName = l.modelName
 		}
-		message, err := l.provider.complete(ctx, modelName, chatCompletionRequest{
+		message, telemetry, err := l.provider.complete(ctx, modelName, chatCompletionRequest{
 			Messages:   messagesFromContents(req.Config, req.Contents, l.provider.reasoningKey),
 			Tools:      toolsFromConfig(req.Config),
 			ToolChoice: toolChoiceFromConfig(req.Config),
 		})
+		l.telemetry.Requests = append(l.telemetry.Requests, telemetry)
+		if l.progress != nil {
+			l.progress(telemetry)
+		}
 		if err != nil {
 			yield(nil, err)
 			return
@@ -155,15 +162,16 @@ func (l *openAILLM) GenerateContent(ctx context.Context, req *model.LLMRequest, 
 	}
 }
 
-func (p *OpenAIProvider) complete(ctx context.Context, modelName string, request chatCompletionRequest) (chatMessage, error) {
+func (p *OpenAIProvider) complete(ctx context.Context, modelName string, request chatCompletionRequest) (chatMessage, agent.ProviderRequestTelemetry, error) {
+	telemetry := agent.ProviderRequestTelemetry{Provider: "openai-compatible", Model: strings.TrimSpace(modelName), Endpoint: "/chat/completions"}
 	if strings.TrimSpace(p.apiKey) == "" {
-		return chatMessage{}, errors.New("API key is required")
+		return chatMessage{}, telemetry, errors.New("API key is required")
 	}
 	if strings.TrimSpace(modelName) == "" {
-		return chatMessage{}, errors.New("model is required")
+		return chatMessage{}, telemetry, errors.New("model is required")
 	}
 	if len(request.Messages) == 0 {
-		return chatMessage{}, errors.New("prompt is required")
+		return chatMessage{}, telemetry, errors.New("prompt is required")
 	}
 	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
@@ -176,11 +184,11 @@ func (p *OpenAIProvider) complete(ctx context.Context, modelName string, request
 	}{Model: modelName, Messages: request.Messages, Tools: request.Tools, ToolChoice: request.ToolChoice, Stream: false}
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return chatMessage{}, err
+		return chatMessage{}, telemetry, err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
-		return chatMessage{}, err
+		return chatMessage{}, telemetry, err
 	}
 	req.Header.Set("Authorization", "Bearer "+p.apiKey)
 	req.Header.Set("Content-Type", "application/json")
@@ -188,17 +196,19 @@ func (p *OpenAIProvider) complete(ctx context.Context, modelName string, request
 	for k, v := range p.extraHeaders {
 		req.Header.Set(k, v)
 	}
+	started := time.Now()
 	resp, err := p.client.Do(req)
+	telemetry.Duration = time.Since(started)
 	if err != nil {
-		return chatMessage{}, err
+		return chatMessage{}, telemetry, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		var errBody struct{ Error struct{ Message string } }
 		if json.NewDecoder(resp.Body).Decode(&errBody) == nil && errBody.Error.Message != "" {
-			return chatMessage{}, fmt.Errorf("API error (%d): %s", resp.StatusCode, errBody.Error.Message)
+			return chatMessage{}, telemetry, fmt.Errorf("API error (%d): %s", resp.StatusCode, errBody.Error.Message)
 		}
-		return chatMessage{}, fmt.Errorf("API request failed: %s", resp.Status)
+		return chatMessage{}, telemetry, fmt.Errorf("API request failed: %s", resp.Status)
 	}
 	var response struct {
 		Choices []struct {
@@ -207,17 +217,28 @@ func (p *OpenAIProvider) complete(ctx context.Context, modelName string, request
 		Error struct {
 			Message string `json:"message"`
 		} `json:"error"`
+		Usage map[string]any `json:"usage"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return chatMessage{}, err
+		return chatMessage{}, telemetry, err
 	}
+	telemetry.Usage = response.Usage
 	if response.Error.Message != "" {
-		return chatMessage{}, errors.New(response.Error.Message)
+		return chatMessage{}, telemetry, errors.New(response.Error.Message)
 	}
 	for _, choice := range response.Choices {
 		if hasMessageContent(choice.Message, "") {
-			return choice.Message, nil
+			telemetry.ToolCalls = toolCallTelemetry(choice.Message.ToolCalls)
+			return choice.Message, telemetry, nil
 		}
 	}
-	return chatMessage{}, errors.New("API returned no completion choices")
+	return chatMessage{}, telemetry, errors.New("API returned no completion choices")
+}
+
+func toolCallTelemetry(calls []chatToolCall) []agent.ToolCallTelemetry {
+	items := make([]agent.ToolCallTelemetry, 0, len(calls))
+	for _, call := range calls {
+		items = append(items, agent.ToolCallTelemetry{ID: strings.TrimSpace(call.ID), Name: strings.TrimSpace(call.Function.Name), Arguments: strings.TrimSpace(call.Function.Arguments)})
+	}
+	return items
 }

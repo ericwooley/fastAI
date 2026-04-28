@@ -153,6 +153,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 				AccessToken:  accessToken,
 				Provider:     input.Provider,
 				PromptRunner: runPromptRunner,
+				Progress:     newTelemetryProgress(deps.Err),
 			})
 			if err != nil {
 				_ = deps.SessionService.Fail(cmd.Context(), record, err.Error())
