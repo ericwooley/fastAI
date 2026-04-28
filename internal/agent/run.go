@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -65,9 +64,6 @@ func (r *LocalRunner) Run(ctx context.Context, req Request) (Result, error) {
 		}
 		if err != nil {
 			return result, fmt.Errorf("%w: %v", ErrExecution, err)
-		}
-		if err := promptResultError(result); err != nil {
-			return result, err
 		}
 		return result, nil
 	}
@@ -146,6 +142,7 @@ type commandToolResult struct {
 	Stdout      string `json:"stdout,omitempty"`
 	Stderr      string `json:"stderr,omitempty"`
 	Status      string `json:"status"`
+	Reason      string `json:"reason,omitempty"`
 }
 
 type readFileToolResult struct {
@@ -164,7 +161,7 @@ func (r *LocalRunner) buildTools(ctx context.Context, result *Result) ([]adktool
 		change, err := r.editor.Apply(ctx, workspace.Operation{Type: workspace.OperationUpdate, Path: args.Path, Content: args.Content})
 		result.FileChanges = append(result.FileChanges, FileChange{Path: change.Path, Operation: change.Operation, Status: change.Status, Reason: change.Reason, BytesChanged: change.BytesChanged})
 		if err != nil {
-			return fileToolResult{Path: change.Path, Operation: change.Operation, Status: change.Status, Reason: change.Reason, BytesChanged: change.BytesChanged}, fmt.Errorf("write_file failed for %q: %w", args.Path, err)
+			return fileToolResult{Path: change.Path, Operation: change.Operation, Status: change.Status, Reason: change.Reason, BytesChanged: change.BytesChanged}, nil
 		}
 		return fileToolResult{Path: change.Path, Operation: change.Operation, Status: change.Status, Reason: change.Reason, BytesChanged: change.BytesChanged}, nil
 	})
@@ -179,7 +176,7 @@ func (r *LocalRunner) buildTools(ctx context.Context, result *Result) ([]adktool
 		change, err := r.editor.Apply(ctx, workspace.Operation{Type: workspace.OperationDelete, Path: args.Path})
 		result.FileChanges = append(result.FileChanges, FileChange{Path: change.Path, Operation: change.Operation, Status: change.Status, Reason: change.Reason, BytesChanged: change.BytesChanged})
 		if err != nil {
-			return fileToolResult{Path: change.Path, Operation: change.Operation, Status: change.Status, Reason: change.Reason, BytesChanged: change.BytesChanged}, fmt.Errorf("delete_file failed for %q: %w", args.Path, err)
+			return fileToolResult{Path: change.Path, Operation: change.Operation, Status: change.Status, Reason: change.Reason, BytesChanged: change.BytesChanged}, nil
 		}
 		return fileToolResult{Path: change.Path, Operation: change.Operation, Status: change.Status, Reason: change.Reason, BytesChanged: change.BytesChanged}, nil
 	})
@@ -193,7 +190,7 @@ func (r *LocalRunner) buildTools(ctx context.Context, result *Result) ([]adktool
 	}, func(_ adktool.Context, args readFileArgs) (readFileToolResult, error) {
 		result, err := r.editor.Read(ctx, args.Path)
 		if err != nil {
-			return readFileToolResult{Path: result.Path, Status: result.Status, Reason: result.Reason, Content: result.Content, Bytes: result.Bytes}, fmt.Errorf("read_file failed for %q: %w", args.Path, err)
+			return readFileToolResult{Path: result.Path, Status: result.Status, Reason: result.Reason, Content: result.Content, Bytes: result.Bytes}, nil
 		}
 		return readFileToolResult{Path: result.Path, Status: result.Status, Reason: result.Reason, Content: result.Content, Bytes: result.Bytes}, nil
 	})
@@ -208,7 +205,7 @@ func (r *LocalRunner) buildTools(ctx context.Context, result *Result) ([]adktool
 		change, err := r.editor.Patch(ctx, workspace.PatchOperation{Path: args.Path, Old: args.Old, New: args.New, ReplaceAll: args.ReplaceAll})
 		result.FileChanges = append(result.FileChanges, FileChange{Path: change.Path, Operation: change.Operation, Status: change.Status, Reason: change.Reason, BytesChanged: change.BytesChanged})
 		if err != nil {
-			return fileToolResult{Path: change.Path, Operation: change.Operation, Status: change.Status, Reason: change.Reason, BytesChanged: change.BytesChanged}, fmt.Errorf("patch_file failed for %q: %w", args.Path, err)
+			return fileToolResult{Path: change.Path, Operation: change.Operation, Status: change.Status, Reason: change.Reason, BytesChanged: change.BytesChanged}, nil
 		}
 		return fileToolResult{Path: change.Path, Operation: change.Operation, Status: change.Status, Reason: change.Reason, BytesChanged: change.BytesChanged}, nil
 	})
@@ -222,40 +219,18 @@ func (r *LocalRunner) buildTools(ctx context.Context, result *Result) ([]adktool
 	}, func(_ adktool.Context, args commandArgs) (commandToolResult, error) {
 		commandResult, err := r.executor.Execute(ctx, commandexec.Request{CommandLine: args.Command, WorkingDir: args.WorkingDirectory})
 		result.CommandResults = append(result.CommandResults, CommandResult{CommandLine: commandResult.CommandLine, WorkingDir: commandResult.WorkingDir, ExitCode: commandResult.ExitCode, Stdout: commandResult.StdoutSummary, Stderr: commandResult.StderrSummary, Status: commandResult.Status})
+		toolResult := commandToolResult{CommandLine: commandResult.CommandLine, WorkingDir: commandResult.WorkingDir, ExitCode: commandResult.ExitCode, Stdout: commandResult.StdoutSummary, Stderr: commandResult.StderrSummary, Status: commandResult.Status}
 		if err != nil {
-			if errors.Is(err, commandexec.ErrBlocked) {
-				return commandToolResult{CommandLine: commandResult.CommandLine, WorkingDir: commandResult.WorkingDir, ExitCode: commandResult.ExitCode, Stdout: commandResult.StdoutSummary, Stderr: commandResult.StderrSummary, Status: commandResult.Status}, fmt.Errorf("run_command blocked for %q: %w", args.Command, err)
-			}
-			return commandToolResult{CommandLine: commandResult.CommandLine, WorkingDir: commandResult.WorkingDir, ExitCode: commandResult.ExitCode, Stdout: commandResult.StdoutSummary, Stderr: commandResult.StderrSummary, Status: commandResult.Status}, nil
+			toolResult.Reason = err.Error()
+			return toolResult, nil
 		}
-		return commandToolResult{CommandLine: commandResult.CommandLine, WorkingDir: commandResult.WorkingDir, ExitCode: commandResult.ExitCode, Stdout: commandResult.StdoutSummary, Stderr: commandResult.StderrSummary, Status: commandResult.Status}, nil
+		return toolResult, nil
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	return []adktool.Tool{readTool, writeTool, patchTool, deleteTool, commandTool}, nil
-}
-
-func promptResultError(result Result) error {
-	for _, change := range result.FileChanges {
-		if strings.EqualFold(change.Status, "blocked") {
-			return workspace.ErrUnsafePath
-		}
-		if strings.EqualFold(change.Status, "failed") {
-			if strings.TrimSpace(change.Reason) != "" {
-				return fmt.Errorf("%w: %s %q failed: %s", ErrExecution, change.Operation, change.Path, change.Reason)
-			}
-			return fmt.Errorf("%w: %s %q failed", ErrExecution, change.Operation, change.Path)
-		}
-	}
-	for _, command := range result.CommandResults {
-		switch strings.ToLower(command.Status) {
-		case "blocked":
-			return commandexec.ErrBlocked
-		}
-	}
-	return nil
 }
 
 func defaultInstruction() string {
