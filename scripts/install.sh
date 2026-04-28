@@ -84,7 +84,7 @@ mkdir -p "$build_dir"
 mkdir -p "$target_dir"
 
 echo "Building $binary_name..."
-go build -o "$build_path" ./cmd/fastAI
+CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o "$build_path" ./cmd/fastAI
 
 cp "$build_path" "$target_path"
 chmod 0755 "$target_path"

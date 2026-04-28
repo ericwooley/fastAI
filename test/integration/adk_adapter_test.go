@@ -42,9 +42,7 @@ func TestADKAdapterRunsToolAwareCompletionThroughADK(t *testing.T) {
 	callCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/models" {
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"data":[{"id":"openai/gpt-4.1","name":"gpt-4.1","model_picker_enabled":true}]}`))
-			return
+			t.Fatalf("RunPrompt should not preflight model validation before completion")
 		}
 		if r.URL.Path != "/chat/completions" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
@@ -87,7 +85,7 @@ func TestADKAdapterRunsToolAwareCompletionThroughADK(t *testing.T) {
 		if err := json.Unmarshal(body, &payload); err != nil {
 			t.Fatalf("decode payload: %v", err)
 		}
-		if payload.Model != "openai/gpt-4.1" || payload.Stream {
+		if payload.Model != "gpt-4.1" || payload.Stream {
 			t.Fatalf("unexpected payload model/stream: %+v", payload)
 		}
 		callCount++

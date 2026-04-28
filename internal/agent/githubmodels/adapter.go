@@ -153,11 +153,14 @@ func (v *Validator) RunPrompt(ctx context.Context, req appagent.PromptRunRequest
 	if strings.TrimSpace(req.Prompt) == "" {
 		return "", errors.New("prompt is required")
 	}
-	resolvedModel, err := v.resolveModel(ctx, req.AccessToken, req.Model)
-	if err != nil {
-		return "", err
+	if strings.TrimSpace(req.AccessToken) == "" {
+		return "", errors.New("GitHub Copilot token is required")
 	}
-	llm := v.NewLLM(req.AccessToken, resolvedModel)
+	modelName := normalizeModelID(req.Model)
+	if modelName == "" {
+		return "", errors.New("model is required")
+	}
+	llm := v.NewLLM(req.AccessToken, modelName)
 	sessionID := strings.TrimSpace(req.SessionID)
 	if sessionID == "" {
 		sessionID = "copilot-run"

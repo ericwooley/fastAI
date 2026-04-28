@@ -4,6 +4,7 @@ BINARY := fastAI
 CMD := ./cmd/fastAI
 BIN_DIR := tmp/bin
 BIN := $(BIN_DIR)/$(BINARY)
+GO_BUILD_FLAGS ?= -trimpath -ldflags "-s -w"
 
 .DEFAULT_GOAL := help
 
@@ -13,6 +14,10 @@ help: ## Show available make targets.
 	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target>\n\nTargets:\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 build: ## Build the local CLI binary into tmp/bin/fastAI.
+	@mkdir -p $(BIN_DIR)
+	CGO_ENABLED=0 go build $(GO_BUILD_FLAGS) -o $(BIN) $(CMD)
+
+build-dev: ## Build the local CLI binary with debug symbols for development.
 	@mkdir -p $(BIN_DIR)
 	go build -o $(BIN) $(CMD)
 

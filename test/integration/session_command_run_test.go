@@ -36,8 +36,7 @@ func TestResumedSessionCommandExecutionFlow(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/models":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"data":[{"id":"openai/gpt-4.1","name":"gpt-4.1","model_picker_enabled":true}]}`))
+			t.Fatalf("RunPrompt should not preflight model validation before completion")
 		case "/chat/completions":
 			callCount++
 			w.Header().Set("Content-Type", "application/json")
