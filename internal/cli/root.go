@@ -16,6 +16,7 @@ import (
 	"github.com/ericwooley/fastAI/internal/agent/githubmodels"
 	"github.com/ericwooley/fastAI/internal/auth"
 	"github.com/ericwooley/fastAI/internal/commandexec"
+	"github.com/ericwooley/fastAI/internal/provider"
 	appsession "github.com/ericwooley/fastAI/internal/session"
 	"github.com/ericwooley/fastAI/internal/workspace"
 )
@@ -87,17 +88,24 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 	deps = deps.withDefaults()
 	var model string
 	var sessionID string
+	var providerName string
 	cmd := &cobra.Command{
-		Use:           "fastAI --model <model> [--session <identifier>] <prompt>",
-		Short:         "Run an autonomous GitHub Copilot-backed coding agent",
+		Use:           "fastAI --model <model> [--provider <provider>] [--session <identifier>] <prompt>",
+		Short:         "Run an autonomous coding agent",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prompt := strings.Join(args, " ")
-			if err := ValidateRunInput(RunInput{Prompt: prompt, Model: model, SessionID: sessionID}); err != nil {
+			input, err := ResolveRunInput(RunInput{Prompt: prompt, Model: model, SessionID: sessionID, Provider: providerName})
+			if err != nil {
 				return err
 			}
+			if err := ValidateRunInput(input); err != nil {
+				return err
+			}
+			model = input.Model
+
 			repoRoot := deps.RepoRoot
 			if repoRoot == "" {
 				wd, _ := os.Getwd()
@@ -107,18 +115,44 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 				}
 				repoRoot = found
 			}
-			account, err := deps.AuthStore.Load(cmd.Context())
-			if err != nil {
-				return WrapRunError(err)
+
+			// Resolve access token based on provider
+			accessToken, accountErr := resolveAccessToken(cmd.Context(), deps, input.Provider)
+			if accountErr != nil {
+				return WrapRunError(accountErr)
 			}
-			if err := account.CheckForClient(deps.Now(), auth.CopilotClientID); err != nil {
-				return WrapRunError(err)
-			}
+
 			record, _, err := deps.SessionService.Start(cmd.Context(), appsession.StartOptions{RepoRoot: repoRoot, SessionID: sessionID, Model: model, Prompt: prompt})
 			if err != nil {
 				return WrapRunError(err)
 			}
-			result, err := deps.Runner.Run(cmd.Context(), agent.Request{Prompt: prompt, Model: model, SessionID: record.SessionID, RepoRoot: repoRoot, AccessToken: account.AccessToken})
+
+			// Create per-request prompt runner for non-default providers
+			var runPromptRunner agent.PromptRunner
+			if input.Provider != "github-copilot" {
+				info, _ := provider.Lookup(input.Provider)
+				providerAPIKey := accessToken
+				if info.EnvKey != "" {
+					if envVal := os.Getenv(info.EnvKey); envVal != "" {
+						providerAPIKey = envVal
+					}
+				}
+				var err error
+				runPromptRunner, err = provider.NewPromptRunner(http.DefaultClient, input.Provider, providerAPIKey)
+				if err != nil {
+					return WrapRunError(err)
+				}
+			}
+
+			result, err := deps.Runner.Run(cmd.Context(), agent.Request{
+				Prompt:       prompt,
+				Model:        model,
+				SessionID:    record.SessionID,
+				RepoRoot:     repoRoot,
+				AccessToken:  accessToken,
+				Provider:     input.Provider,
+				PromptRunner: runPromptRunner,
+			})
 			if err != nil {
 				_ = deps.SessionService.Fail(cmd.Context(), record, err.Error())
 				return WrapRunError(err)
@@ -139,9 +173,30 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 	cmd.SetOut(deps.Out)
 	cmd.SetErr(deps.Err)
 	cmd.Flags().StringVar(&model, "model", "", "model to use for the autonomous agent run")
+	cmd.Flags().StringVar(&providerName, "provider", "", "AI provider to use (e.g., openai, openrouter, deepseek, github-copilot)")
 	cmd.Flags().StringVar(&sessionID, "session", "", "session identifier for follow-up work")
 	cmd.AddCommand(newLoginCommand(deps))
 	return cmd
+}
+
+func resolveAccessToken(ctx context.Context, deps Dependencies, providerID string) (string, error) {
+	if providerID == "github-copilot" {
+		account, err := deps.AuthStore.Load(ctx)
+		if err != nil {
+			return "", err
+		}
+		if err := account.CheckForClient(deps.Now(), auth.CopilotClientID); err != nil {
+			return "", err
+		}
+		return account.AccessToken, nil
+	}
+	info, _ := provider.Lookup(providerID)
+	if info.EnvKey != "" {
+		if apiKey := os.Getenv(info.EnvKey); apiKey != "" {
+			return apiKey, nil
+		}
+	}
+	return "", fmt.Errorf("no API key found for provider %q: set the %s environment variable", providerID, info.EnvKey)
 }
 
 func (d Dependencies) withDefaults() Dependencies {

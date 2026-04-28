@@ -10,11 +10,13 @@ import (
 var ErrExecution = errors.New("agent execution failed")
 
 type Request struct {
-	Prompt      string
-	Model       string
-	SessionID   string
-	RepoRoot    string
-	AccessToken string
+	Prompt       string
+	Model        string
+	SessionID    string
+	RepoRoot     string
+	AccessToken  string
+	Provider     string
+	PromptRunner PromptRunner
 }
 
 type Result struct {

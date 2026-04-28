@@ -40,12 +40,16 @@ func NewLocalRunnerWithPromptRunner(editor WorkspaceEditor, executor CommandExec
 
 func (r *LocalRunner) Run(ctx context.Context, req Request) (Result, error) {
 	result := Result{SessionID: req.SessionID, Model: req.Model}
-	if r.promptRunner != nil {
+	runPromptRunner := r.promptRunner
+	if req.PromptRunner != nil {
+		runPromptRunner = req.PromptRunner
+	}
+	if runPromptRunner != nil {
 		tools, err := r.buildTools(ctx, &result)
 		if err != nil {
 			return result, fmt.Errorf("%w: %v", ErrExecution, err)
 		}
-		text, err := r.promptRunner.RunPrompt(ctx, PromptRunRequest{
+		text, err := runPromptRunner.RunPrompt(ctx, PromptRunRequest{
 			AccessToken: req.AccessToken,
 			Model:       req.Model,
 			Prompt:      req.Prompt,
