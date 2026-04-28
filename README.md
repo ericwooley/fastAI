@@ -1,6 +1,6 @@
 # fastAI
 
-A non-interactive, autonomous CLI coding agent backed by GitHub Copilot. Invoke it from your terminal inside any Git repository to delegate coding tasks—file edits, command execution, and session-persistent follow-up work.
+A non-interactive, autonomous CLI coding agent. Invoke it from your terminal inside any Git repository to delegate coding tasks—file edits, command execution, and session-persistent follow-up work.
 
 ## Dev Quickstart
 
