@@ -65,7 +65,8 @@ func messagesFromContents(config *genai.GenerateContentConfig, contents []*genai
 				continue
 			}
 			if text != "" || reasoning != "" || len(toolCalls) > 0 {
-				msg := chatMessage{Role: role, Content: text, ReasoningText: reasoning, ToolCalls: toolCalls}
+				msg := chatMessage{Role: role, Content: text, ToolCalls: toolCalls}
+				setReasoningText(&msg, reasoning, reasoningField)
 				messages = append(messages, msg)
 			}
 			continue
@@ -88,7 +89,6 @@ func messagesFromContents(config *genai.GenerateContentConfig, contents []*genai
 			})
 		}
 	}
-	_ = reasoningField
 	return messages
 }
 
@@ -124,6 +124,18 @@ func reasoningText(message chatMessage, _ string) string {
 		return r
 	}
 	return strings.TrimSpace(message.ReasoningText)
+}
+
+func setReasoningText(message *chatMessage, reasoning string, reasoningField string) {
+	reasoning = strings.TrimSpace(reasoning)
+	if message == nil || reasoning == "" {
+		return
+	}
+	if reasoningField == "reasoning_content" {
+		message.ReasoningContent = reasoning
+		return
+	}
+	message.ReasoningText = reasoning
 }
 
 func toolsFromConfig(config *genai.GenerateContentConfig) []chatTool {

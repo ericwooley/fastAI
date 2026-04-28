@@ -27,12 +27,17 @@ type OpenAIProvider struct {
 	baseURL      string
 	userAgent    string
 	extraHeaders map[string]string
+	reasoningKey string
 }
 
 type OpenAIOption func(*OpenAIProvider)
 
 func WithExtraHeaders(headers map[string]string) OpenAIOption {
 	return func(p *OpenAIProvider) { p.extraHeaders = headers }
+}
+
+func WithReasoningKey(reasoningKey string) OpenAIOption {
+	return func(p *OpenAIProvider) { p.reasoningKey = strings.TrimSpace(reasoningKey) }
 }
 
 func NewOpenAI(client *http.Client, apiKey string, baseURL string, userAgent string, opts ...OpenAIOption) *OpenAIProvider {
@@ -133,7 +138,7 @@ func (l *openAILLM) GenerateContent(ctx context.Context, req *model.LLMRequest, 
 			modelName = l.modelName
 		}
 		message, err := l.provider.complete(ctx, modelName, chatCompletionRequest{
-			Messages:   messagesFromContents(req.Config, req.Contents, ""),
+			Messages:   messagesFromContents(req.Config, req.Contents, l.provider.reasoningKey),
 			Tools:      toolsFromConfig(req.Config),
 			ToolChoice: toolChoiceFromConfig(req.Config),
 		})
@@ -141,7 +146,7 @@ func (l *openAILLM) GenerateContent(ctx context.Context, req *model.LLMRequest, 
 			yield(nil, err)
 			return
 		}
-		content, err := contentFromMessage(message, "")
+		content, err := contentFromMessage(message, l.provider.reasoningKey)
 		if err != nil {
 			yield(nil, err)
 			return

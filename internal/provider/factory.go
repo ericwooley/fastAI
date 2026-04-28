@@ -19,6 +19,8 @@ func NewPromptRunner(client *http.Client, providerID string, apiKey string) (age
 	switch info.ID {
 	case "github-copilot":
 		return githubmodels.NewValidator(client, info.BaseURL, "fastAI/0.1"), nil
+	case "deepseek":
+		return NewOpenAI(client, apiKey, info.BaseURL, "fastAI/0.1", WithReasoningKey("reasoning_content")), nil
 	case "openrouter":
 		return NewOpenAI(client, apiKey, info.BaseURL, "fastAI/0.1", WithExtraHeaders(map[string]string{
 			"HTTP-Referer": "https://github.com/ericwooley/fastAI",
