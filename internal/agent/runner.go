@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"errors"
+
+	adktool "google.golang.org/adk/tool"
 )
 
 var ErrExecution = errors.New("agent execution failed")
@@ -49,5 +51,14 @@ type ModelValidator interface {
 }
 
 type PromptRunner interface {
-	RunPrompt(context.Context, string, string, string) (string, error)
+	RunPrompt(context.Context, PromptRunRequest) (string, error)
+}
+
+type PromptRunRequest struct {
+	AccessToken string
+	Model       string
+	Prompt      string
+	SessionID   string
+	Instruction string
+	Tools       []adktool.Tool
 }

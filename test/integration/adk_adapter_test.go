@@ -6,9 +6,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	appagent "github.com/ericwooley/fastAI/internal/agent"
 	"github.com/ericwooley/fastAI/internal/agent/githubmodels"
+	adktool "google.golang.org/adk/tool"
+	"google.golang.org/adk/tool/functiontool"
 )
 
 func TestADKAdapterModelValidationFailureHandling(t *testing.T) {
@@ -33,8 +37,9 @@ func TestADKAdapterModelValidationFailureHandling(t *testing.T) {
 	}
 }
 
-func TestADKAdapterRunsCopilotCompletionThroughADK(t *testing.T) {
+func TestADKAdapterRunsToolAwareCompletionThroughADK(t *testing.T) {
 	t.Parallel()
+	callCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/models" {
 			w.Header().Set("Content-Type", "application/json")
@@ -57,10 +62,27 @@ func TestADKAdapterRunsCopilotCompletionThroughADK(t *testing.T) {
 		var payload struct {
 			Model    string `json:"model"`
 			Messages []struct {
-				Role    string `json:"role"`
-				Content string `json:"content"`
+				Role          string `json:"role"`
+				Content       any    `json:"content"`
+				ReasoningText string `json:"reasoning_text"`
+				ToolCalls     []struct {
+					ID       string `json:"id"`
+					Type     string `json:"type"`
+					Function struct {
+						Name      string `json:"name"`
+						Arguments string `json:"arguments"`
+					} `json:"function"`
+				} `json:"tool_calls"`
+				ToolCallID string `json:"tool_call_id"`
 			} `json:"messages"`
-			Stream bool `json:"stream"`
+			Tools []struct {
+				Type     string `json:"type"`
+				Function struct {
+					Name string `json:"name"`
+				} `json:"function"`
+			} `json:"tools"`
+			ToolChoice any  `json:"tool_choice"`
+			Stream     bool `json:"stream"`
 		}
 		if err := json.Unmarshal(body, &payload); err != nil {
 			t.Fatalf("decode payload: %v", err)
@@ -68,20 +90,74 @@ func TestADKAdapterRunsCopilotCompletionThroughADK(t *testing.T) {
 		if payload.Model != "openai/gpt-4.1" || payload.Stream {
 			t.Fatalf("unexpected payload model/stream: %+v", payload)
 		}
-		if len(payload.Messages) == 0 || payload.Messages[len(payload.Messages)-1].Content != "summarize this" {
+		callCount++
+		switch callCount {
+		case 1:
+			if len(payload.Tools) != 1 || payload.Tools[0].Function.Name != "echo_tool" {
+				t.Fatalf("expected tool declaration, got %+v", payload.Tools)
+			}
+			if choice, ok := payload.ToolChoice.(string); !ok || choice != "auto" {
+				t.Fatalf("unexpected tool choice: %#v", payload.ToolChoice)
+			}
+			if len(payload.Messages) < 2 || payload.Messages[len(payload.Messages)-1].Role != "user" || payload.Messages[len(payload.Messages)-1].Content != "summarize this" {
+				t.Fatalf("unexpected first messages: %+v", payload.Messages)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","tool_calls":[{"id":"call-1","type":"function","function":{"name":"echo_tool","arguments":"{\"value\":\"from model\"}"}}]}}]}`))
+			return
+		case 2:
+			if len(payload.Messages) < 4 {
+				t.Fatalf("expected assistant and tool messages, got %+v", payload.Messages)
+			}
+			assistant := payload.Messages[len(payload.Messages)-2]
+			toolMsg := payload.Messages[len(payload.Messages)-1]
+			if assistant.Role != "assistant" || len(assistant.ToolCalls) != 1 || assistant.ToolCalls[0].Function.Name != "echo_tool" {
+				t.Fatalf("unexpected assistant tool call message: %+v", assistant)
+			}
+			if toolMsg.Role != "tool" || toolMsg.ToolCallID != "call-1" {
+				t.Fatalf("unexpected tool response message: %+v", toolMsg)
+			}
+			content, ok := toolMsg.Content.(string)
+			if !ok || !strings.Contains(content, "from model") {
+				t.Fatalf("unexpected tool content: %#v", toolMsg.Content)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"completed through ADK tool flow"}}]}`))
+			return
+		default:
+			t.Fatalf("unexpected completion call count: %d", callCount)
+		}
+		if len(payload.Messages) == 0 {
 			t.Fatalf("unexpected messages: %+v", payload.Messages)
 		}
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"completed through ADK"}}]}`))
 	}))
 	defer server.Close()
 
+	tool, err := functiontool.New(functiontool.Config{
+		Name:        "echo_tool",
+		Description: "Echoes the provided value.",
+	}, func(_ adktool.Context, args struct {
+		Value string `json:"value"`
+	}) (map[string]any, error) {
+		return map[string]any{"echoed": args.Value}, nil
+	})
+	if err != nil {
+		t.Fatalf("new tool: %v", err)
+	}
+
 	adapter := githubmodels.NewValidator(server.Client(), server.URL, "fastAI/test")
-	text, err := adapter.RunPrompt(context.Background(), "token", "github:gpt-4.1", "summarize this")
+	text, err := adapter.RunPrompt(context.Background(), appagent.PromptRunRequest{
+		AccessToken: "token",
+		Model:       "github:gpt-4.1",
+		Prompt:      "summarize this",
+		SessionID:   "session-1",
+		Instruction: "Use tools when needed.",
+		Tools:       []adktool.Tool{tool},
+	})
 	if err != nil {
 		t.Fatalf("run prompt: %v", err)
 	}
-	if text != "completed through ADK" {
+	if text != "completed through ADK tool flow" {
 		t.Fatalf("unexpected text: %q", text)
 	}
 }
