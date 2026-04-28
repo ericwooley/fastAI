@@ -92,7 +92,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 	var verbose bool
 	var noSession bool
 	cmd := &cobra.Command{
-		Use:           "fastAI --model <model> [--provider <provider>] [--session <identifier>] <prompt>",
+		Use:           "fastAI --provider <provider> --model <model> [--session <identifier>] <prompt>",
 		Short:         "Run an autonomous coding agent",
 		SilenceUsage:  true,
 		SilenceErrors: true,

@@ -17,11 +17,11 @@ func TestCLILoginAndSuccessfulRun(t *testing.T) {
 	repo := tempRepo(t)
 	runner := &fakeRunner{result: agent.Result{Summary: "ok"}}
 	deps := deps(t, repo, runner)
-	code, out, errOut := execute(t, []string{"login"}, deps)
+	code, out, errOut := execute(t, []string{"login", "copilot"}, deps)
 	if code != 0 || !strings.Contains(out, "Login succeeded") || errOut != "" {
 		t.Fatalf("login code=%d out=%q err=%q", code, out, errOut)
 	}
-	code, out, errOut = execute(t, []string{"--model", "github:gpt-4.1", "do work"}, deps)
+	code, out, errOut = execute(t, []string{"--provider", "github-copilot", "--model", "github:gpt-4.1", "do work"}, deps)
 	if code != 0 || strings.TrimSpace(out) != "ok" || !strings.Contains(errOut, "session:") || !strings.Contains(errOut, "provider: github-copilot") || !strings.Contains(errOut, "model: github:gpt-4.1") {
 		t.Fatalf("run code=%d out=%q err=%q", code, out, errOut)
 	}
@@ -41,6 +41,15 @@ func TestCLILoginAndSuccessfulRun(t *testing.T) {
 	}
 }
 
+func TestCLILoginRequiresProvider(t *testing.T) {
+	t.Parallel()
+	repo := tempRepo(t)
+	code, _, errOut := execute(t, []string{"login"}, deps(t, repo, &fakeRunner{}))
+	if code != 2 || !strings.Contains(errOut, "login provider is required") || !strings.Contains(errOut, "fastAI login copilot") {
+		t.Fatalf("login code=%d err=%q", code, errOut)
+	}
+}
+
 func TestCLINoSessionRunDoesNotPersistHistory(t *testing.T) {
 	t.Parallel()
 	repo := tempRepo(t)
@@ -53,7 +62,7 @@ func TestCLINoSessionRunDoesNotPersistHistory(t *testing.T) {
 		t.Fatalf("save auth: %v", err)
 	}
 
-	code, out, errOut := execute(t, []string{"--no-session", "--model", "github:gpt-4.1", "small task"}, deps)
+	code, out, errOut := execute(t, []string{"--no-session", "--provider", "github-copilot", "--model", "github:gpt-4.1", "small task"}, deps)
 	if code != 0 || strings.TrimSpace(out) != "ok" || strings.Contains(errOut, "session:") {
 		t.Fatalf("run code=%d out=%q err=%q", code, out, errOut)
 	}
@@ -70,7 +79,7 @@ func TestCLINoSessionRejectsExplicitSession(t *testing.T) {
 	t.Parallel()
 	repo := tempRepo(t)
 	runner := &fakeRunner{result: agent.Result{Summary: "ok"}}
-	code, _, errOut := execute(t, []string{"--no-session", "--session", "follow-up", "--model", "github:gpt-4.1", "small task"}, deps(t, repo, runner))
+	code, _, errOut := execute(t, []string{"--no-session", "--session", "follow-up", "--provider", "github-copilot", "--model", "github:gpt-4.1", "small task"}, deps(t, repo, runner))
 	if code != 2 || !strings.Contains(errOut, "--no-session cannot be used with --session") {
 		t.Fatalf("code=%d err=%q", code, errOut)
 	}
@@ -82,17 +91,26 @@ func TestCLINoSessionRejectsExplicitSession(t *testing.T) {
 func TestCLIMissingModelFailsValidation(t *testing.T) {
 	t.Parallel()
 	repo := tempRepo(t)
-	code, _, errOut := execute(t, []string{"do work"}, deps(t, repo, &fakeRunner{}))
+	code, _, errOut := execute(t, []string{"--provider", "github-copilot", "do work"}, deps(t, repo, &fakeRunner{}))
 	if code != 2 || !strings.Contains(errOut, "--model is required") {
 		t.Fatalf("code=%d err=%q", code, errOut)
 	}
 }
 
-func TestCLIProviderPrefixedModelRun(t *testing.T) {
+func TestCLIMissingProviderFailsValidation(t *testing.T) {
+	t.Parallel()
+	repo := tempRepo(t)
+	code, _, errOut := execute(t, []string{"--model", "gpt-4.1", "do work"}, deps(t, repo, &fakeRunner{}))
+	if code != 2 || !strings.Contains(errOut, "--provider is required") {
+		t.Fatalf("code=%d err=%q", code, errOut)
+	}
+}
+
+func TestCLIExplicitProviderRun(t *testing.T) {
 	t.Setenv("OPENROUTER_API_KEY", "openrouter-token")
 	repo := tempRepo(t)
 	runner := &fakeRunner{result: agent.Result{Summary: "ok"}}
-	code, out, errOut := execute(t, []string{"--model", "openrouter/deepseek/deepseek-chat", "do work"}, deps(t, repo, runner))
+	code, out, errOut := execute(t, []string{"--provider", "openrouter", "--model", "deepseek/deepseek-chat", "do work"}, deps(t, repo, runner))
 	if code != 0 || strings.TrimSpace(out) != "ok" || !strings.Contains(errOut, "provider: openrouter") || !strings.Contains(errOut, "model: deepseek/deepseek-chat") {
 		t.Fatalf("run code=%d out=%q err=%q", code, out, errOut)
 	}
@@ -102,18 +120,5 @@ func TestCLIProviderPrefixedModelRun(t *testing.T) {
 	seen := runner.seen[0]
 	if seen.Provider != "openrouter" || seen.Model != "deepseek/deepseek-chat" || seen.AccessToken != "openrouter-token" || seen.PromptRunner == nil {
 		t.Fatalf("runner saw unexpected request: %+v", seen)
-	}
-}
-
-func TestCLIConflictingProviderAndModelPrefixFailsValidation(t *testing.T) {
-	t.Parallel()
-	repo := tempRepo(t)
-	runner := &fakeRunner{result: agent.Result{Summary: "ok"}}
-	code, _, errOut := execute(t, []string{"--provider", "openai", "--model", "openrouter/deepseek-chat", "do work"}, deps(t, repo, runner))
-	if code != 2 || !strings.Contains(errOut, "--provider conflicts with --model prefix") {
-		t.Fatalf("code=%d err=%q", code, errOut)
-	}
-	if len(runner.seen) != 0 {
-		t.Fatalf("runner should not be called: %+v", runner.seen)
 	}
 }

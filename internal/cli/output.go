@@ -71,7 +71,7 @@ func CodeForError(err error) ExitCode {
 func WrapRunError(err error) error {
 	switch CodeForError(err) {
 	case ExitAuth:
-		return WrapError(ExitAuth, "authentication required", "Run `fastAI login` and retry.", err)
+		return WrapError(ExitAuth, "authentication required", "Run `fastAI login copilot` and retry.", err)
 	case ExitBlocked:
 		return WrapError(ExitBlocked, "unsafe repository operation blocked", "Keep file and command operations inside the active repository.", err)
 	case ExitValidation:

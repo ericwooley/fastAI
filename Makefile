@@ -28,7 +28,7 @@ run: build ## Run the local CLI. Pass args with ARGS='--model ... prompt'.
 	$(BIN) $(ARGS)
 
 login: build ## Authenticate with GitHub Copilot using the local binary.
-	$(BIN) login
+	$(BIN) login copilot
 
 test: ## Run all tests.
 	go test ./...

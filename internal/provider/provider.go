@@ -42,15 +42,3 @@ func Lookup(id string) (Info, error) {
 	}
 	return info, nil
 }
-
-func ParseModel(model string) (providerID, modelID string) {
-	model = strings.TrimSpace(model)
-	before, after, hasSlash := strings.Cut(model, "/")
-	if !hasSlash {
-		return "", model
-	}
-	if _, ok := known[before]; ok {
-		return before, after
-	}
-	return "", model
-}

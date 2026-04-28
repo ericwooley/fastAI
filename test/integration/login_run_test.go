@@ -30,13 +30,13 @@ func TestLoginAndAuthenticatedRunOrchestration(t *testing.T) {
 		Now:            time.Now,
 	}
 
-	if code := cli.Execute(context.Background(), []string{"login"}, deps); code != int(cli.ExitSuccess) {
+	if code := cli.Execute(context.Background(), []string{"login", "copilot"}, deps); code != int(cli.ExitSuccess) {
 		t.Fatalf("login exit = %d", code)
 	}
 	if _, err := store.Load(context.Background()); err != nil {
 		t.Fatalf("load account after login: %v", err)
 	}
-	if code := cli.Execute(context.Background(), []string{"--model", "github:gpt-4.1", "do", "work"}, deps); code != int(cli.ExitSuccess) {
+	if code := cli.Execute(context.Background(), []string{"--provider", "github-copilot", "--model", "github:gpt-4.1", "do", "work"}, deps); code != int(cli.ExitSuccess) {
 		t.Fatalf("run exit = %d", code)
 	}
 	if runner.seen.Model != "github:gpt-4.1" || runner.seen.AccessToken != "token" || !strings.Contains(runner.seen.Prompt, "do work") {

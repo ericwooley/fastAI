@@ -5,14 +5,22 @@ import (
 )
 
 func newLoginCommand(deps Dependencies) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "login",
+		Short: "Authenticate with a provider",
+		Args:  cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			return NewError(ExitValidation, "login provider is required", "Run `fastAI login copilot`.")
+		},
+	}
+	cmd.AddCommand(&cobra.Command{
+		Use:   "copilot",
 		Short: "Authenticate with GitHub Copilot",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			account, err := deps.Authenticator.Login(cmd.Context(), deps.Out)
 			if err != nil {
-				return WrapError(ExitAuth, "GitHub Copilot login failed", "Check network access and retry `fastAI login`.", err)
+				return WrapError(ExitAuth, "GitHub Copilot login failed", "Check network access and retry `fastAI login copilot`.", err)
 			}
 			if err := deps.AuthStore.Save(cmd.Context(), account); err != nil {
 				return WrapError(ExitAuth, "could not persist GitHub Copilot login", "Check config directory permissions and retry.", err)
@@ -20,5 +28,6 @@ func newLoginCommand(deps Dependencies) *cobra.Command {
 			FormatLoginSuccess(deps.Out, account)
 			return nil
 		},
-	}
+	})
+	return cmd
 }

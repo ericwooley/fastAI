@@ -18,31 +18,6 @@ func TestKnownReturnsDeterministicSupportedProviders(t *testing.T) {
 	}
 }
 
-func TestParseModel(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name         string
-		model        string
-		wantProvider string
-		wantModel    string
-	}{
-		{name: "plain model", model: "gpt-4.1", wantModel: "gpt-4.1"},
-		{name: "known provider", model: "openrouter/deepseek/deepseek-chat", wantProvider: "openrouter", wantModel: "deepseek/deepseek-chat"},
-		{name: "unknown provider-like prefix", model: "org/model", wantModel: "org/model"},
-		{name: "trims whitespace", model: " openai/gpt-4.1 ", wantProvider: "openai", wantModel: "gpt-4.1"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			gotProvider, gotModel := ParseModel(tt.model)
-			if gotProvider != tt.wantProvider || gotModel != tt.wantModel {
-				t.Fatalf("ParseModel(%q) = (%q, %q), want (%q, %q)", tt.model, gotProvider, gotModel, tt.wantProvider, tt.wantModel)
-			}
-		})
-	}
-}
-
 func TestLookupTrimsID(t *testing.T) {
 	t.Parallel()
 	info, err := Lookup(" openai ")

@@ -61,8 +61,8 @@ Requires Go 1.24.x. The binary is placed in `$GOPATH/bin` or `~/go/bin`.
 ## Prerequisites
 
 - **Go 1.24.x**
-- A GitHub account with **GitHub Copilot** access
 - Run from inside a Git repository
+- One configured AI provider: GitHub Copilot login or a supported provider API key
 
 ## Dev Quickstart
 
@@ -72,7 +72,7 @@ make build                    # Build tmp/bin/fastAI
 make install                  # Install fastAI into your user bin directory
 make test                     # Run all tests
 make check                    # Format, vet, and test
-make run ARGS='--model github:gpt-4.1 "Refactor the auth module and add tests"'
+make run ARGS='--provider github-copilot --model github:gpt-4.1 "Refactor the auth module and add tests"'
 ```
 
 Common focused test scopes:
@@ -83,7 +83,7 @@ make test-integration
 make test-e2e
 ```
 
-Authenticate the local build when you need real Copilot-backed runs:
+Authenticate the local build when you need GitHub Copilot-backed runs:
 
 ```bash
 make login
@@ -91,7 +91,9 @@ make login
 
 ## Features
 
-- **GitHub Copilot authentication** via OAuth device flow (`fastAI login`)
+- **Explicit provider selection** via the required `--provider <provider>` flag
+- **GitHub Copilot login** via OAuth device flow (`fastAI login copilot`)
+- **API-key providers** via environment variables for OpenAI-compatible endpoints
 - **Autonomous, non-interactive execution** — no prompts during a run
 - **File operations** — create, update, patch, and delete files within the repo boundary
 - **Command execution** — run shell commands scoped to the repository
@@ -101,26 +103,43 @@ make login
 
 ## Usage
 
-### Login (one-time setup)
+### Providers And Credentials
+
+| Provider ID | Name | Credential | Example model usage |
+|-------------|------|------------|---------------------|
+| `github-copilot` | GitHub Copilot | `fastAI login copilot` OAuth device flow. No API key is required for normal CLI runs. | `--provider github-copilot --model github:gpt-4.1` |
+| `openai` | OpenAI | Set `OPENAI_API_KEY` | `--provider openai --model gpt-4.1` |
+| `openrouter` | OpenRouter | Set `OPENROUTER_API_KEY` | `--provider openrouter --model deepseek/deepseek-chat` |
+| `deepseek` | DeepSeek | Set `DEEPSEEK_API_KEY` | `--provider deepseek --model deepseek-chat` |
+
+For non-Copilot providers, export the key before running fastAI:
 
 ```bash
-fastAI login
+export OPENAI_API_KEY="..."
+export OPENROUTER_API_KEY="..."
+export DEEPSEEK_API_KEY="..."
 ```
 
-Opens a browser for GitHub device-flow authentication. Credentials are stored locally.
+### Login (one-time Copilot setup)
+
+```bash
+fastAI login copilot
+```
+
+Opens a browser for GitHub device-flow authentication. Copilot credentials are stored locally.
 
 ### Run a task
 
 ```bash
-fastAI --model github:gpt-4.1 "Refactor the auth module and add tests"
+fastAI --provider github-copilot --model github:gpt-4.1 "Refactor the auth module and add tests"
 ```
 
-`--model` is required on every invocation. Without it, the CLI exits with a validation error.
+`--provider` and `--model` are required on every invocation. Without either flag, the CLI exits with a validation error.
 
 ### Continue a prior session
 
 ```bash
-fastAI --model github:gpt-4.1 --session my-task "Now add error handling"
+fastAI --provider github-copilot --model github:gpt-4.1 --session my-task "Now add error handling"
 ```
 
 ## Exit Codes

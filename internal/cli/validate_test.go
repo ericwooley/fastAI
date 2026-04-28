@@ -9,12 +9,13 @@ func TestValidateRunInput(t *testing.T) {
 		input   RunInput
 		wantErr bool
 	}{
-		{name: "valid", input: RunInput{Prompt: "do work", Model: "github:gpt-4.1"}},
+		{name: "valid", input: RunInput{Prompt: "do work", Model: "gpt-4.1", Provider: "github-copilot"}},
 		{name: "valid provider", input: RunInput{Prompt: "do work", Model: "gpt-4.1", Provider: "openai"}},
 		{name: "invalid provider", input: RunInput{Prompt: "do work", Model: "gpt-4.1", Provider: "anthropic"}, wantErr: true},
-		{name: "missing prompt", input: RunInput{Model: "github:gpt-4.1"}, wantErr: true},
+		{name: "missing prompt", input: RunInput{Model: "gpt-4.1", Provider: "github-copilot"}, wantErr: true},
 		{name: "missing model", input: RunInput{Prompt: "do work"}, wantErr: true},
-		{name: "valid session", input: RunInput{Prompt: "do work", Model: "github:gpt-4.1", SessionID: "follow-up_1"}},
+		{name: "missing provider", input: RunInput{Prompt: "do work", Model: "gpt-4.1"}, wantErr: true},
+		{name: "valid session", input: RunInput{Prompt: "do work", Model: "gpt-4.1", Provider: "github-copilot", SessionID: "follow-up_1"}},
 	}
 
 	for _, tt := range tests {
@@ -40,29 +41,19 @@ func TestResolveRunInput(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:  "defaults to GitHub Copilot",
-			input: RunInput{Prompt: "do work", Model: "gpt-4.1"},
+			name:  "trims model and provider",
+			input: RunInput{Prompt: "do work", Model: " gpt-4.1 ", Provider: " github-copilot "},
 			want:  RunInput{Prompt: "do work", Model: "gpt-4.1", Provider: "github-copilot"},
 		},
 		{
 			name:  "hashes explicit session",
-			input: RunInput{Prompt: "do work", Model: "gpt-4.1", SessionID: "follow"},
+			input: RunInput{Prompt: "do work", Model: "gpt-4.1", Provider: "github-copilot", SessionID: "follow"},
 			want:  RunInput{Prompt: "do work", Model: "gpt-4.1", SessionID: "a4010945e4bd924bc2a890a2effea0e6", Provider: "github-copilot"},
 		},
 		{
-			name:  "uses provider prefix",
-			input: RunInput{Prompt: "do work", Model: "openrouter/deepseek/deepseek-chat"},
+			name:  "keeps slash model unchanged",
+			input: RunInput{Prompt: "do work", Model: "deepseek/deepseek-chat", Provider: "openrouter"},
 			want:  RunInput{Prompt: "do work", Model: "deepseek/deepseek-chat", Provider: "openrouter"},
-		},
-		{
-			name:  "keeps matching explicit provider",
-			input: RunInput{Prompt: "do work", Model: "openai/gpt-4.1", Provider: "openai"},
-			want:  RunInput{Prompt: "do work", Model: "gpt-4.1", Provider: "openai"},
-		},
-		{
-			name:    "rejects conflicting provider",
-			input:   RunInput{Prompt: "do work", Model: "openrouter/deepseek-chat", Provider: "openai"},
-			wantErr: true,
 		},
 	}
 
