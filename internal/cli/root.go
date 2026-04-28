@@ -89,6 +89,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 	var model string
 	var sessionID string
 	var providerName string
+	var verbose bool
 	cmd := &cobra.Command{
 		Use:           "fastAI --model <model> [--provider <provider>] [--session <identifier>] <prompt>",
 		Short:         "Run an autonomous coding agent",
@@ -153,7 +154,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 				AccessToken:  accessToken,
 				Provider:     input.Provider,
 				PromptRunner: runPromptRunner,
-				Progress:     newTelemetryProgress(deps.Err),
+				Progress:     newTelemetryProgress(deps.Err, verbose),
 			})
 			if err != nil {
 				_ = deps.SessionService.Fail(cmd.Context(), record, err.Error())
@@ -180,6 +181,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 	cmd.Flags().StringVar(&model, "model", "", "model to use for the autonomous agent run")
 	cmd.Flags().StringVar(&providerName, "provider", "", "AI provider to use (e.g., openai, openrouter, deepseek, github-copilot)")
 	cmd.Flags().StringVar(&sessionID, "session", "", "session identifier for follow-up work")
+	cmd.Flags().BoolVar(&verbose, "verbose", false, "show request timing and token usage on stderr")
 	cmd.AddCommand(newLoginCommand(deps))
 	return cmd
 }

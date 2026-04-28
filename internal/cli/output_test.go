@@ -37,7 +37,7 @@ func TestFormatRunSuccessWritesOnlyModelOutputToStdout(t *testing.T) {
 	if got, want := out.String(), result.Summary+"\n"; got != want {
 		t.Fatalf("stdout = %q, want %q", got, want)
 	}
-	for _, forbidden := range []string{"Run completed successfully", "Session:", "Model:", "Summary:", "File:", "Command:"} {
+	for _, forbidden := range []string{"run completed successfully", "Run completed successfully", "Session:", "Model:", "Summary:", "File:", "Command:"} {
 		if strings.Contains(out.String(), forbidden) {
 			t.Fatalf("stdout contains %q: %q", forbidden, out.String())
 		}
@@ -65,10 +65,41 @@ func TestFormatRunSuccessWritesOnlyModelOutputToStdout(t *testing.T) {
 	}
 }
 
-func TestTelemetryProgressWritesRequestAsItHappens(t *testing.T) {
+func TestTelemetryProgressWritesToolCallsWithoutVerbose(t *testing.T) {
 	t.Parallel()
 	var errOut bytes.Buffer
-	progress := newTelemetryProgress(&errOut)
+	progress := newTelemetryProgress(&errOut, false)
+
+	progress(agent.ProviderRequestTelemetry{
+		Provider: "github-copilot",
+		Model:    "gpt-5-mini",
+		Endpoint: "/chat/completions",
+		Duration: 150 * time.Millisecond,
+		Usage: map[string]any{
+			"prompt_tokens":     float64(20),
+			"completion_tokens": float64(7),
+			"total_tokens":      float64(27),
+			"prompt_tokens_details": map[string]any{
+				"cached_tokens": float64(8),
+			},
+		},
+		ToolCalls: []agent.ToolCallTelemetry{{ID: "call-1", Name: "read_file", Arguments: `{"path":"main.go"}`}},
+	})
+
+	if want := `tool call: read_file id=call-1 args={"path":"main.go"}`; !strings.Contains(errOut.String(), want) {
+		t.Fatalf("stderr missing %q in %q", want, errOut.String())
+	}
+	for _, unwanted := range []string{"request: #1", "tokens:"} {
+		if strings.Contains(errOut.String(), unwanted) {
+			t.Fatalf("stderr contains verbose telemetry %q in %q", unwanted, errOut.String())
+		}
+	}
+}
+
+func TestTelemetryProgressWritesRequestDetailsWithVerbose(t *testing.T) {
+	t.Parallel()
+	var errOut bytes.Buffer
+	progress := newTelemetryProgress(&errOut, true)
 
 	progress(agent.ProviderRequestTelemetry{
 		Provider: "github-copilot",

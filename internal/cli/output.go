@@ -111,7 +111,6 @@ func FormatLoginSuccess(w io.Writer, account auth.Account) {
 }
 
 func FormatRunSuccess(out io.Writer, thinking io.Writer, result agent.Result) {
-	writeStderr(thinking, "run completed successfully")
 	writeStderr(thinking, "session: %s", result.SessionID)
 	writeStderr(thinking, "provider: %s", result.Provider)
 	writeStderr(thinking, "model: %s", result.Model)
@@ -132,18 +131,20 @@ func FormatRunSuccess(out io.Writer, thinking io.Writer, result agent.Result) {
 	}
 }
 
-func newTelemetryProgress(w io.Writer) func(agent.ProviderRequestTelemetry) {
+func newTelemetryProgress(w io.Writer, verbose bool) func(agent.ProviderRequestTelemetry) {
 	var count int
 	return func(request agent.ProviderRequestTelemetry) {
 		count++
-		formatTelemetryRequest(w, count, request)
+		formatTelemetryRequest(w, count, request, verbose)
 	}
 }
 
-func formatTelemetryRequest(w io.Writer, number int, request agent.ProviderRequestTelemetry) {
-	writeStderr(w, "request: #%d provider=%s model=%s endpoint=%s duration=%s", number, request.Provider, request.Model, request.Endpoint, request.Duration)
-	if usage := formatUsage(request.Usage); usage != "" {
-		writeStderr(w, "tokens: %s", usage)
+func formatTelemetryRequest(w io.Writer, number int, request agent.ProviderRequestTelemetry, verbose bool) {
+	if verbose {
+		writeStderr(w, "request: #%d provider=%s model=%s endpoint=%s duration=%s", number, request.Provider, request.Model, request.Endpoint, request.Duration)
+		if usage := formatUsage(request.Usage); usage != "" {
+			writeStderr(w, "tokens: %s", usage)
+		}
 	}
 	for _, call := range request.ToolCalls {
 		line := fmt.Sprintf("tool call: %s", call.Name)
