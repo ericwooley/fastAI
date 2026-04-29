@@ -21,7 +21,7 @@ func TestCLILoginAndSuccessfulRun(t *testing.T) {
 	if code != 0 || !strings.Contains(out, "Login succeeded") || errOut != "" {
 		t.Fatalf("login code=%d out=%q err=%q", code, out, errOut)
 	}
-	code, out, errOut = execute(t, []string{"--provider", "github-copilot", "--model", "github:gpt-4.1", "do work"}, deps)
+	code, out, errOut = execute(t, []string{"--provider", "github-copilot", "--model", "github:gpt-4.1", "--permissions", "all", "do work"}, deps)
 	if code != 0 || strings.TrimSpace(out) != "ok" || !strings.Contains(errOut, "session:") || !strings.Contains(errOut, "provider: github-copilot") || !strings.Contains(errOut, "model: github:gpt-4.1") {
 		t.Fatalf("run code=%d out=%q err=%q", code, out, errOut)
 	}
@@ -80,6 +80,52 @@ func TestCLIRejectsInvalidPermissions(t *testing.T) {
 	}
 }
 
+func TestCLIUsesEnvironmentDefaults(t *testing.T) {
+	t.Setenv("FASTAI_DEFAULT_PROVIDER", "github-copilot")
+	t.Setenv("FASTAI_DEFAULT_MODEL", "github:gpt-5-mini")
+	t.Setenv("FASTAI_DEFAULT_PERMISSIONS", "execute")
+	repo := tempRepo(t)
+	runner := &fakeRunner{result: agent.Result{Summary: "ok"}}
+	deps := deps(t, repo, runner)
+	if err := deps.AuthStore.Save(context.Background(), auth.Account{Provider: auth.ProviderGitHubCopilot, AccessToken: "token", OAuthClientID: auth.CopilotClientID}); err != nil {
+		t.Fatalf("save auth: %v", err)
+	}
+	code, _, errOut := execute(t, []string{"do work"}, deps)
+	if code != 0 {
+		t.Fatalf("code=%d err=%q", code, errOut)
+	}
+	if len(runner.seen) != 1 {
+		t.Fatalf("runner calls = %+v", runner.seen)
+	}
+	seen := runner.seen[0]
+	if seen.Provider != "github-copilot" || seen.Model != "github:gpt-5-mini" || !seen.Permissions.Execute || seen.Permissions.Read || seen.Permissions.Write {
+		t.Fatalf("runner saw unexpected request: %+v", seen)
+	}
+}
+
+func TestCLIFlagsOverrideEnvironmentDefaults(t *testing.T) {
+	t.Setenv("FASTAI_DEFAULT_PROVIDER", "openai")
+	t.Setenv("FASTAI_DEFAULT_MODEL", "env-model")
+	t.Setenv("FASTAI_DEFAULT_PERMISSIONS", "all")
+	repo := tempRepo(t)
+	runner := &fakeRunner{result: agent.Result{Summary: "ok"}}
+	deps := deps(t, repo, runner)
+	if err := deps.AuthStore.Save(context.Background(), auth.Account{Provider: auth.ProviderGitHubCopilot, AccessToken: "token", OAuthClientID: auth.CopilotClientID}); err != nil {
+		t.Fatalf("save auth: %v", err)
+	}
+	code, _, errOut := execute(t, []string{"--provider", "github-copilot", "--model", "github:gpt-5-mini", "--permissions", "execute", "do work"}, deps)
+	if code != 0 {
+		t.Fatalf("code=%d err=%q", code, errOut)
+	}
+	if len(runner.seen) != 1 {
+		t.Fatalf("runner calls = %+v", runner.seen)
+	}
+	seen := runner.seen[0]
+	if seen.Provider != "github-copilot" || seen.Model != "github:gpt-5-mini" || !seen.Permissions.Execute || seen.Permissions.Read || seen.Permissions.Write {
+		t.Fatalf("runner saw unexpected request: %+v", seen)
+	}
+}
+
 func TestCLINoSessionRunDoesNotPersistHistory(t *testing.T) {
 	t.Parallel()
 	repo := tempRepo(t)
@@ -92,7 +138,7 @@ func TestCLINoSessionRunDoesNotPersistHistory(t *testing.T) {
 		t.Fatalf("save auth: %v", err)
 	}
 
-	code, out, errOut := execute(t, []string{"--no-session", "--provider", "github-copilot", "--model", "github:gpt-4.1", "small task"}, deps)
+	code, out, errOut := execute(t, []string{"--no-session", "--provider", "github-copilot", "--model", "github:gpt-4.1", "--permissions", "all", "small task"}, deps)
 	if code != 0 || strings.TrimSpace(out) != "ok" || strings.Contains(errOut, "session:") {
 		t.Fatalf("run code=%d out=%q err=%q", code, out, errOut)
 	}
@@ -109,7 +155,7 @@ func TestCLINoSessionRejectsExplicitSession(t *testing.T) {
 	t.Parallel()
 	repo := tempRepo(t)
 	runner := &fakeRunner{result: agent.Result{Summary: "ok"}}
-	code, _, errOut := execute(t, []string{"--no-session", "--session", "follow-up", "--provider", "github-copilot", "--model", "github:gpt-4.1", "small task"}, deps(t, repo, runner))
+	code, _, errOut := execute(t, []string{"--no-session", "--session", "follow-up", "--provider", "github-copilot", "--model", "github:gpt-4.1", "--permissions", "all", "small task"}, deps(t, repo, runner))
 	if code != 2 || !strings.Contains(errOut, "--no-session cannot be used with --session") {
 		t.Fatalf("code=%d err=%q", code, errOut)
 	}
@@ -121,7 +167,7 @@ func TestCLINoSessionRejectsExplicitSession(t *testing.T) {
 func TestCLIMissingModelFailsValidation(t *testing.T) {
 	t.Parallel()
 	repo := tempRepo(t)
-	code, _, errOut := execute(t, []string{"--provider", "github-copilot", "do work"}, deps(t, repo, &fakeRunner{}))
+	code, _, errOut := execute(t, []string{"--provider", "github-copilot", "--permissions", "all", "do work"}, deps(t, repo, &fakeRunner{}))
 	if code != 2 || !strings.Contains(errOut, "--model is required") {
 		t.Fatalf("code=%d err=%q", code, errOut)
 	}
@@ -130,7 +176,7 @@ func TestCLIMissingModelFailsValidation(t *testing.T) {
 func TestCLIMissingProviderFailsValidation(t *testing.T) {
 	t.Parallel()
 	repo := tempRepo(t)
-	code, _, errOut := execute(t, []string{"--model", "gpt-4.1", "do work"}, deps(t, repo, &fakeRunner{}))
+	code, _, errOut := execute(t, []string{"--model", "gpt-4.1", "--permissions", "all", "do work"}, deps(t, repo, &fakeRunner{}))
 	if code != 2 || !strings.Contains(errOut, "--provider is required") {
 		t.Fatalf("code=%d err=%q", code, errOut)
 	}
@@ -140,7 +186,7 @@ func TestCLIExplicitProviderRun(t *testing.T) {
 	t.Setenv("OPENROUTER_API_KEY", "openrouter-token")
 	repo := tempRepo(t)
 	runner := &fakeRunner{result: agent.Result{Summary: "ok"}}
-	code, out, errOut := execute(t, []string{"--provider", "openrouter", "--model", "deepseek/deepseek-chat", "do work"}, deps(t, repo, runner))
+	code, out, errOut := execute(t, []string{"--provider", "openrouter", "--model", "deepseek/deepseek-chat", "--permissions", "all", "do work"}, deps(t, repo, runner))
 	if code != 0 || strings.TrimSpace(out) != "ok" || !strings.Contains(errOut, "provider: openrouter") || !strings.Contains(errOut, "model: deepseek/deepseek-chat") {
 		t.Fatalf("run code=%d out=%q err=%q", code, out, errOut)
 	}
