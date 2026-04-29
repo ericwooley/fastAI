@@ -40,12 +40,13 @@ func NewLocalRunnerWithPromptRunner(editor WorkspaceEditor, executor CommandExec
 
 func (r *LocalRunner) Run(ctx context.Context, req Request) (Result, error) {
 	result := Result{SessionID: req.SessionID, Model: req.Model, Provider: req.Provider}
+	permissions := effectivePermissions(req.Permissions)
 	runPromptRunner := r.promptRunner
 	if req.PromptRunner != nil {
 		runPromptRunner = req.PromptRunner
 	}
 	if runPromptRunner != nil {
-		tools, err := r.buildTools(ctx, &result)
+		tools, err := r.buildTools(ctx, &result, permissions)
 		if err != nil {
 			return result, fmt.Errorf("%w: %v", ErrExecution, err)
 		}
@@ -54,7 +55,7 @@ func (r *LocalRunner) Run(ctx context.Context, req Request) (Result, error) {
 			Model:       req.Model,
 			Prompt:      req.Prompt,
 			SessionID:   req.SessionID,
-			Instruction: defaultInstruction(),
+			Instruction: defaultInstruction(permissions),
 			Tools:       tools,
 			Progress:    req.Progress,
 		})
@@ -72,31 +73,35 @@ func (r *LocalRunner) Run(ctx context.Context, req Request) (Result, error) {
 			return Result{SessionID: req.SessionID, Model: req.Model, Provider: req.Provider}, fmt.Errorf("%w: %v", ErrExecution, err)
 		}
 	}
-	for _, op := range parseFileOperations(req.Prompt) {
-		change, err := r.editor.Apply(ctx, op)
-		result.FileChanges = append(result.FileChanges, FileChange{
-			Path:         change.Path,
-			Operation:    change.Operation,
-			Status:       change.Status,
-			Reason:       change.Reason,
-			BytesChanged: change.BytesChanged,
-		})
-		if err != nil {
-			return result, err
+	if permissions.Write {
+		for _, op := range parseFileOperations(req.Prompt) {
+			change, err := r.editor.Apply(ctx, op)
+			result.FileChanges = append(result.FileChanges, FileChange{
+				Path:         change.Path,
+				Operation:    change.Operation,
+				Status:       change.Status,
+				Reason:       change.Reason,
+				BytesChanged: change.BytesChanged,
+			})
+			if err != nil {
+				return result, err
+			}
 		}
 	}
-	for _, commandLine := range parseCommands(req.Prompt) {
-		commandResult, err := r.executor.Execute(ctx, commandexec.Request{CommandLine: commandLine})
-		result.CommandResults = append(result.CommandResults, CommandResult{
-			CommandLine: commandResult.CommandLine,
-			WorkingDir:  commandResult.WorkingDir,
-			ExitCode:    commandResult.ExitCode,
-			Stdout:      commandResult.StdoutSummary,
-			Stderr:      commandResult.StderrSummary,
-			Status:      commandResult.Status,
-		})
-		if err != nil {
-			return result, fmt.Errorf("%w: command %q exited with status %d", ErrExecution, commandLine, commandResult.ExitCode)
+	if permissions.Execute {
+		for _, commandLine := range parseCommands(req.Prompt) {
+			commandResult, err := r.executor.Execute(ctx, commandexec.Request{CommandLine: commandLine})
+			result.CommandResults = append(result.CommandResults, CommandResult{
+				CommandLine: commandResult.CommandLine,
+				WorkingDir:  commandResult.WorkingDir,
+				ExitCode:    commandResult.ExitCode,
+				Stdout:      commandResult.StdoutSummary,
+				Stderr:      commandResult.StderrSummary,
+				Status:      commandResult.Status,
+			})
+			if err != nil {
+				return result, fmt.Errorf("%w: command %q exited with status %d", ErrExecution, commandLine, commandResult.ExitCode)
+			}
 		}
 	}
 	return result, nil
@@ -153,7 +158,14 @@ type readFileToolResult struct {
 	Bytes   int64  `json:"bytes"`
 }
 
-func (r *LocalRunner) buildTools(ctx context.Context, result *Result) ([]adktool.Tool, error) {
+func effectivePermissions(permissions Permissions) Permissions {
+	if !permissions.Set {
+		return AllPermissions()
+	}
+	return permissions
+}
+
+func (r *LocalRunner) buildTools(ctx context.Context, result *Result, permissions Permissions) ([]adktool.Tool, error) {
 	writeTool, err := functiontool.New(functiontool.Config{
 		Name:        "write_file",
 		Description: "Create or update a file inside the current repository. Use this for all file edits.",
@@ -230,15 +242,50 @@ func (r *LocalRunner) buildTools(ctx context.Context, result *Result) ([]adktool
 		return nil, err
 	}
 
-	return []adktool.Tool{readTool, writeTool, patchTool, deleteTool, commandTool}, nil
+	tools := make([]adktool.Tool, 0, 5)
+	if permissions.Read {
+		tools = append(tools, readTool)
+	}
+	if permissions.Write {
+		tools = append(tools, writeTool, patchTool, deleteTool)
+	}
+	if permissions.Execute {
+		tools = append(tools, commandTool)
+	}
+	return tools, nil
 }
 
-func defaultInstruction() string {
+func defaultInstruction(permissions Permissions) string {
+	if !permissions.Read && !permissions.Write && !permissions.Execute {
+		return strings.TrimSpace(`You are fastAI, a non-interactive repository coding agent.
+
+You have no repository tools available in this run. Answer using only the prompt context, and do not claim that you can read files, write files, or run commands.
+
+Keep the final response concise and task-focused.`)
+	}
+
+	toolText := ""
+	if permissions.Read {
+		toolText += "reading files"
+	}
+	if permissions.Write {
+		if toolText != "" {
+			toolText += ", "
+		}
+		toolText += "writing files, applying targeted patches, and deleting files"
+	}
+	if permissions.Execute {
+		if toolText != "" {
+			toolText += ", "
+		}
+		toolText += "running commands"
+	}
+
 	return strings.TrimSpace(`You are fastAI, a non-interactive repository coding agent.
 
-You have real repository-safe tools available for reading files, writing files, applying targeted patches, deleting files, and running commands inside the current repository.
+You have real repository-safe tools available for ` + toolText + ` inside the current repository.
 
-Use tools whenever the user asks about repository state, file contents, code changes, or command output. Read existing files before modifying them when current contents matter, and prefer targeted patches over full rewrites when a precise edit is sufficient. Do not claim that you lack file access, command execution, or tool access.
+Use available tools whenever the user asks about repository state, file contents, code changes, or command output. Read existing files before modifying them when current contents matter and read access is available, and prefer targeted patches over full rewrites when write access is available. Do not claim that you have unavailable file access, command execution, or tool access.
 
 When the user asks what tools you have, describe the actual available tools and their repository-safe constraints.
 

@@ -50,6 +50,36 @@ func TestCLILoginRequiresProvider(t *testing.T) {
 	}
 }
 
+func TestCLIPassesPermissionsToRunner(t *testing.T) {
+	t.Parallel()
+	repo := tempRepo(t)
+	runner := &fakeRunner{result: agent.Result{Summary: "ok"}}
+	deps := deps(t, repo, runner)
+	if err := deps.AuthStore.Save(context.Background(), auth.Account{Provider: auth.ProviderGitHubCopilot, AccessToken: "token", OAuthClientID: auth.CopilotClientID}); err != nil {
+		t.Fatalf("save auth: %v", err)
+	}
+	code, _, errOut := execute(t, []string{"--provider", "github-copilot", "--model", "github:gpt-4.1", "--permissions", "read,write", "do work"}, deps)
+	if code != 0 {
+		t.Fatalf("code=%d err=%q", code, errOut)
+	}
+	if len(runner.seen) != 1 || !runner.seen[0].Permissions.Read || !runner.seen[0].Permissions.Write || runner.seen[0].Permissions.Execute {
+		t.Fatalf("runner saw permissions: %+v", runner.seen)
+	}
+}
+
+func TestCLIRejectsInvalidPermissions(t *testing.T) {
+	t.Parallel()
+	repo := tempRepo(t)
+	runner := &fakeRunner{result: agent.Result{Summary: "ok"}}
+	code, _, errOut := execute(t, []string{"--provider", "github-copilot", "--model", "github:gpt-4.1", "--permissions", "read,admin", "do work"}, deps(t, repo, runner))
+	if code != 2 || !strings.Contains(errOut, "--permissions must be a comma-separated list") {
+		t.Fatalf("code=%d err=%q", code, errOut)
+	}
+	if len(runner.seen) != 0 {
+		t.Fatalf("runner should not be called: %+v", runner.seen)
+	}
+}
+
 func TestCLINoSessionRunDoesNotPersistHistory(t *testing.T) {
 	t.Parallel()
 	repo := tempRepo(t)

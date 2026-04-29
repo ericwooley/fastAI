@@ -17,8 +17,20 @@ type Request struct {
 	RepoRoot     string
 	AccessToken  string
 	Provider     string
+	Permissions  Permissions
 	PromptRunner PromptRunner
 	Progress     func(ProviderRequestTelemetry)
+}
+
+type Permissions struct {
+	Set     bool
+	Read    bool
+	Write   bool
+	Execute bool
+}
+
+func AllPermissions() Permissions {
+	return Permissions{Set: true, Read: true, Write: true, Execute: true}
 }
 
 type Result struct {

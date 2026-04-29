@@ -89,6 +89,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 	var model string
 	var sessionID string
 	var providerName string
+	var permissions string
 	var verbose bool
 	var noSession bool
 	cmd := &cobra.Command{
@@ -102,7 +103,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 			if noSession && strings.TrimSpace(sessionID) != "" {
 				return NewError(ExitValidation, "--no-session cannot be used with --session", "Remove one of the session flags and retry.")
 			}
-			input, err := ResolveRunInput(RunInput{Prompt: prompt, Model: model, SessionID: sessionID, Provider: providerName})
+			input, err := ResolveRunInput(RunInput{Prompt: prompt, Model: model, SessionID: sessionID, Provider: providerName, Permissions: permissions})
 			if err != nil {
 				return err
 			}
@@ -165,6 +166,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 				RepoRoot:     repoRoot,
 				AccessToken:  accessToken,
 				Provider:     input.Provider,
+				Permissions:  input.Permissions,
 				PromptRunner: runPromptRunner,
 				Progress:     newTelemetryProgress(deps.Err, verbose),
 			})
@@ -199,6 +201,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 	cmd.Flags().StringVar(&model, "model", "", "model to use for the autonomous agent run")
 	cmd.Flags().StringVar(&providerName, "provider", "", "AI provider to use (e.g., openai, openrouter, deepseek, github-copilot)")
 	cmd.Flags().StringVar(&sessionID, "session", "", "session identifier for follow-up work")
+	cmd.Flags().StringVar(&permissions, "permissions", "", "comma-separated tool permissions: read, write, execute, or none")
 	cmd.Flags().BoolVar(&verbose, "verbose", false, "show request timing and token usage on stderr")
 	cmd.Flags().BoolVar(&noSession, "no-session", false, "run without saving session history")
 	cmd.AddCommand(newLoginCommand(deps))
