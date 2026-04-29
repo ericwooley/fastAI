@@ -18,7 +18,7 @@ go build ./cmd/fastAI
 Authenticate once before starting agent-backed runs.
 
 ```bash
-./fastAI login
+./fastAI login copilot
 ```
 
 Expected flow:
@@ -29,11 +29,12 @@ Expected flow:
 ## Start a New Run
 
 ```bash
-./fastAI --model github:gpt-4.1 "Refactor the CLI entrypoint and add tests"
+./fastAI --provider github-copilot --model github:gpt-4.1 --permissions all "Refactor the CLI entrypoint and add tests"
 ```
 
 Expected behavior:
-- The run fails fast if `--model` or the prompt is missing.
+- The run fails fast if the prompt is missing.
+- The run also fails if provider, model, or permissions cannot be resolved from flags or `FASTAI_DEFAULT_*` environment variables.
 - The run uses non-interactive execution only.
 - Agent prompts are routed through the repository-local GitHub Copilot adapter and `google.golang.org/adk`.
 - File edits and commands stay within the active repository boundary.
@@ -41,7 +42,7 @@ Expected behavior:
 ## Continue a Prior Session
 
 ```bash
-./fastAI --model github:gpt-4.1 --session refactor-cli "Now add command execution coverage"
+./fastAI --provider github-copilot --model github:gpt-4.1 --permissions all --session refactor-cli "Now add command execution coverage"
 ```
 
 Expected behavior:
@@ -65,4 +66,4 @@ go test ./test/e2e/...
 ```
 
 Latest verification:
-- `go test ./...` passes with unit, integration, and CLI e2e coverage for login, required model validation, ADK-backed Copilot adapter behavior, safe file editing, command execution, and `--session` resume/error flows.
+- `go test ./...` passes with unit, integration, and CLI e2e coverage for login, env-backed run defaults, permission validation, ADK-backed Copilot adapter behavior, safe file editing, command execution, and `--session` resume/error flows.

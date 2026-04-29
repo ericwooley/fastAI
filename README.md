@@ -72,7 +72,7 @@ make build                    # Build tmp/bin/fastAI
 make install                  # Install fastAI into your user bin directory
 make test                     # Run all tests
 make check                    # Format, vet, and test
-make run ARGS='--provider github-copilot --model github:gpt-4.1 "Refactor the auth module and add tests"'
+make run ARGS='--provider github-copilot --model github:gpt-4.1 --permissions all "Refactor the auth module and add tests"'
 ```
 
 Common focused test scopes:
@@ -91,14 +91,15 @@ make login
 
 ## Features
 
-- **Explicit provider selection** via the required `--provider <provider>` flag
+- **Explicit provider selection** via `--provider <provider>` or `FASTAI_DEFAULT_PROVIDER`
 - **GitHub Copilot login** via OAuth device flow (`fastAI login copilot`)
 - **API-key providers** via environment variables for OpenAI-compatible endpoints
 - **Autonomous, non-interactive execution** — no prompts during a run
 - **File operations** — create, update, patch, and delete files within the repo boundary
 - **Command execution** — run shell commands scoped to the repository
 - **Session persistence** — resume prior work with `--session <id>`
-- **Required model flag** — every run must specify `--model` (e.g., `github:gpt-4.1`)
+- **Model selection** via `--model <model>` or `FASTAI_DEFAULT_MODEL`
+- **Tool permissions** via `--permissions <list>` or `FASTAI_DEFAULT_PERMISSIONS`
 - **Repository safety** — all file and command operations are confined to the repo root
 
 ## Usage
@@ -120,6 +121,16 @@ export OPENROUTER_API_KEY="..."
 export DEEPSEEK_API_KEY="..."
 ```
 
+You can also set CLI defaults with environment variables:
+
+```bash
+export FASTAI_DEFAULT_PROVIDER="github-copilot"
+export FASTAI_DEFAULT_MODEL="github:gpt-5-mini"
+export FASTAI_DEFAULT_PERMISSIONS="all"
+```
+
+Flag values override their matching `FASTAI_DEFAULT_*` values.
+
 ### Login (one-time Copilot setup)
 
 ```bash
@@ -131,15 +142,34 @@ Opens a browser for GitHub device-flow authentication. Copilot credentials are s
 ### Run a task
 
 ```bash
-fastAI --provider github-copilot --model github:gpt-4.1 "Refactor the auth module and add tests"
+fastAI --provider github-copilot --model github:gpt-4.1 --permissions all "Refactor the auth module and add tests"
 ```
 
-`--provider` and `--model` are required on every invocation. Without either flag, the CLI exits with a validation error.
+Each run must resolve `provider`, `model`, and `permissions` from either flags or matching defaults:
+
+- `--provider` or `FASTAI_DEFAULT_PROVIDER`
+- `--model` or `FASTAI_DEFAULT_MODEL`
+- `--permissions` or `FASTAI_DEFAULT_PERMISSIONS`
+
+If any of those are missing after resolution, the CLI exits with a validation error.
+
+### Permissions
+
+Use `--permissions` as a comma-separated list of allowed tool groups:
+
+- `all`: allow read, write, and execute
+- `read`: allow file reads only
+- `write`: allow file writes only
+- `execute`: allow shell commands only
+- `read,write`: allow reads and writes but not command execution
+- `none`: disable all tools
+
+`all` and `none` must be used alone.
 
 ### Continue a prior session
 
 ```bash
-fastAI --provider github-copilot --model github:gpt-4.1 --session my-task "Now add error handling"
+fastAI --provider github-copilot --model github:gpt-4.1 --permissions all --session my-task "Now add error handling"
 ```
 
 ## Exit Codes

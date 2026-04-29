@@ -10,7 +10,7 @@ later non-interactive runs.
 **Usage**:
 
 ```text
-fastAI login
+fastAI login copilot
 ```
 
 **Behavior**:
@@ -26,13 +26,18 @@ Starts one autonomous agent run against the active repository.
 **Usage**:
 
 ```text
-fastAI --model <model> [--session <identifier>] <prompt>
+fastAI [--provider <provider>] [--model <model>] [--permissions <list>] [--session <identifier>] <prompt>
 ```
 
-**Required flags**:
-- `--model <model>`: required on every run, including resumed sessions.
+**Resolved required configuration**:
+- Provider: `--provider <provider>` or `FASTAI_DEFAULT_PROVIDER`
+- Model: `--model <model>` or `FASTAI_DEFAULT_MODEL`
+- Permissions: `--permissions <list>` or `FASTAI_DEFAULT_PERMISSIONS`
 
 **Optional flags**:
+- `--provider <provider>`: selects the AI provider when not supplied by env default.
+- `--model <model>`: selects the model when not supplied by env default.
+- `--permissions <list>`: comma-separated tool permissions: `read`, `write`, `execute`, `all`, or `none`.
 - `--session <identifier>`: resumes or continues work for an existing session when valid.
 
 **Arguments**:
@@ -41,17 +46,20 @@ fastAI --model <model> [--session <identifier>] <prompt>
 ## Validation Rules
 
 - Missing `<prompt>` returns a validation error.
-- Missing `--model` returns a validation error.
+- Missing resolved provider returns a validation error.
+- Missing resolved model returns a validation error.
+- Missing resolved permissions returns a validation error.
 - A run without valid GitHub authentication returns an authentication error and points users to
   `fastAI login`.
 - A provided `--session` must exist, be readable, and belong to the current repository.
 - Requested file edits and commands must stay within the active repository safety boundary.
+- `all` and `none` are valid permissions values, but each must appear alone.
 
 ## Exit Status Contract
 
 - `0`: run completed successfully
 - `1`: agent execution failed after a valid start
-- `2`: CLI validation failed, including missing prompt, missing `--model`, or invalid session
+- `2`: CLI validation failed, including missing prompt, unresolved provider/model/permissions, invalid permissions, or invalid session
 - `3`: authentication missing, expired, or rejected
 - `4`: blocked unsafe operation, including repo-boundary violations for file or command work
 
@@ -82,4 +90,4 @@ fastAI --model <model> [--session <identifier>] <prompt>
 - The agent runner uses `google.golang.org/adk` for orchestration.
 - GitHub-backed model calls are performed through a repository-local adapter that converts the
   selected `--model` and authenticated token into ADK-compatible model execution.
-- File editing and command execution are exposed to the runner as repository-safe tools only.
+- File editing and command execution are exposed to the runner as repository-safe tools only, filtered by the resolved permissions set.
