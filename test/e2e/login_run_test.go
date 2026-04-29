@@ -165,7 +165,7 @@ func TestCLINoSessionRejectsExplicitSession(t *testing.T) {
 }
 
 func TestCLIMissingModelFailsValidation(t *testing.T) {
-	t.Parallel()
+	clearFastAIDefaults(t)
 	repo := tempRepo(t)
 	code, _, errOut := execute(t, []string{"--provider", "github-copilot", "--permissions", "all", "do work"}, deps(t, repo, &fakeRunner{}))
 	if code != 2 || !strings.Contains(errOut, "--model is required") {
@@ -174,7 +174,7 @@ func TestCLIMissingModelFailsValidation(t *testing.T) {
 }
 
 func TestCLIMissingProviderFailsValidation(t *testing.T) {
-	t.Parallel()
+	clearFastAIDefaults(t)
 	repo := tempRepo(t)
 	code, _, errOut := execute(t, []string{"--model", "gpt-4.1", "--permissions", "all", "do work"}, deps(t, repo, &fakeRunner{}))
 	if code != 2 || !strings.Contains(errOut, "--provider is required") {
@@ -197,4 +197,11 @@ func TestCLIExplicitProviderRun(t *testing.T) {
 	if seen.Provider != "openrouter" || seen.Model != "deepseek/deepseek-chat" || seen.AccessToken != "openrouter-token" || seen.PromptRunner == nil {
 		t.Fatalf("runner saw unexpected request: %+v", seen)
 	}
+}
+
+func clearFastAIDefaults(t *testing.T) {
+	t.Helper()
+	t.Setenv("FASTAI_DEFAULT_MODEL", "")
+	t.Setenv("FASTAI_DEFAULT_PROVIDER", "")
+	t.Setenv("FASTAI_DEFAULT_PERMISSIONS", "")
 }

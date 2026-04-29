@@ -39,7 +39,6 @@ func TestValidateRunInput(t *testing.T) {
 }
 
 func TestResolveRunInput(t *testing.T) {
-	t.Parallel()
 	tests := []struct {
 		name    string
 		input   RunInput
@@ -100,7 +99,7 @@ func TestResolveRunInput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+			clearFastAIDefaults(t)
 			got, err := ResolveRunInput(tt.input)
 			if tt.wantErr && err == nil {
 				t.Fatalf("expected error")
@@ -119,6 +118,7 @@ func TestResolveRunInput(t *testing.T) {
 }
 
 func TestResolveRunInputUsesEnvironmentDefaults(t *testing.T) {
+	clearFastAIDefaults(t)
 	t.Setenv("FASTAI_DEFAULT_MODEL", " github:gpt-5-mini ")
 	t.Setenv("FASTAI_DEFAULT_PROVIDER", " github-copilot ")
 	t.Setenv("FASTAI_DEFAULT_PERMISSIONS", " all ")
@@ -134,6 +134,7 @@ func TestResolveRunInputUsesEnvironmentDefaults(t *testing.T) {
 }
 
 func TestResolveRunInputFlagsOverrideEnvironmentDefaults(t *testing.T) {
+	clearFastAIDefaults(t)
 	t.Setenv("FASTAI_DEFAULT_MODEL", "env-model")
 	t.Setenv("FASTAI_DEFAULT_PROVIDER", "openai")
 	t.Setenv("FASTAI_DEFAULT_PERMISSIONS", "all")
@@ -146,4 +147,11 @@ func TestResolveRunInputFlagsOverrideEnvironmentDefaults(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("ResolveRunInput() = %+v, want %+v", got, want)
 	}
+}
+
+func clearFastAIDefaults(t *testing.T) {
+	t.Helper()
+	t.Setenv("FASTAI_DEFAULT_MODEL", "")
+	t.Setenv("FASTAI_DEFAULT_PROVIDER", "")
+	t.Setenv("FASTAI_DEFAULT_PERMISSIONS", "")
 }
