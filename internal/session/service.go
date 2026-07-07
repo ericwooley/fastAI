@@ -90,6 +90,28 @@ func (s *Service) Fail(ctx context.Context, record Record, summary string) error
 	return s.finish(ctx, record, "failed", summary, StatusFailed)
 }
 
+func (s *Service) Delete(ctx context.Context, repoRoot string, sessionID string) error {
+	repoKey, err := RepoKey(repoRoot)
+	if err != nil {
+		return err
+	}
+	if err := ValidateSessionID(sessionID); err != nil {
+		return err
+	}
+	return s.store.Delete(ctx, repoKey, sessionID)
+}
+
+func (s *Service) HistoryPath(repoRoot string, sessionID string) (string, error) {
+	repoKey, err := RepoKey(repoRoot)
+	if err != nil {
+		return "", err
+	}
+	if err := ValidateSessionID(sessionID); err != nil {
+		return "", err
+	}
+	return s.store.Path(repoKey, sessionID), nil
+}
+
 func (s *Service) finish(ctx context.Context, record Record, outcome string, summary string, status Status) error {
 	now := s.now()
 	runID := newRunID()
@@ -105,6 +127,7 @@ func (s *Service) finish(ctx context.Context, record Record, outcome string, sum
 		StartedAt:  record.UpdatedAt,
 		FinishedAt: now,
 	})
+	record.CompactedHistory = CompactHistory(record.Runs, record.CompactedHistory, CompactionMessageSize)
 	return s.store.Save(ctx, record)
 }
 

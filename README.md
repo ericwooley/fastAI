@@ -97,7 +97,8 @@ make login
 - **Autonomous, non-interactive execution** — no prompts during a run
 - **File operations** — create, update, patch, and delete files within the repo boundary
 - **Command execution** — run shell commands scoped to the repository
-- **Session persistence** — resume prior work with `--session <id>`
+- **Session persistence** — resume prior work as a conversation with `--session <id>`
+- **Global session** — reuse or reset a repository-wide conversation with `--globalSession` and `--newGlobalSession`
 - **Model selection** via `--model <model>` or `FASTAI_DEFAULT_MODEL`
 - **Tool permissions** via `--permissions <list>` or `FASTAI_DEFAULT_PERMISSIONS`
 - **Repository safety** — all file and command operations are confined to the repo root
@@ -171,6 +172,20 @@ Use `--permissions` as a comma-separated list of allowed tool groups:
 ```bash
 fastAI --provider github-copilot --model github:gpt-4.1 --permissions all --session my-task "Now add error handling"
 ```
+
+Named sessions include prior prompts and agent summaries in follow-up model requests. The raw
+session history remains on disk so the agent can grep older details by timestamp or run id when
+needed.
+
+### Continue the global session
+
+```bash
+fastAI --provider github-copilot --model github:gpt-4.1 --permissions all --globalSession "Keep going"
+fastAI --provider github-copilot --model github:gpt-4.1 --permissions all --newGlobalSession "Start fresh"
+```
+
+`--globalSession` uses a repository-wide session named `global`. `--newGlobalSession` deletes that
+stored conversation before running the new prompt.
 
 ## Exit Codes
 

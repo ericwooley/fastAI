@@ -92,16 +92,25 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 	var permissions string
 	var verbose bool
 	var noSession bool
+	var globalSession bool
+	var newGlobalSession bool
 	cmd := &cobra.Command{
-		Use:           "fastAI --provider <provider> --model <model> [--session <identifier>] <prompt>",
+		Use:           "fastAI --provider <provider> --model <model> [--session <identifier>] [--globalSession] <prompt>",
 		Short:         "Run an autonomous coding agent",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prompt := strings.Join(args, " ")
+			usesGlobalSession := globalSession || newGlobalSession
 			if noSession && strings.TrimSpace(sessionID) != "" {
 				return NewError(ExitValidation, "--no-session cannot be used with --session", "Remove one of the session flags and retry.")
+			}
+			if noSession && usesGlobalSession {
+				return NewError(ExitValidation, "--no-session cannot be used with --globalSession or --newGlobalSession", "Remove one of the session flags and retry.")
+			}
+			if strings.TrimSpace(sessionID) != "" && usesGlobalSession {
+				return NewError(ExitValidation, "--session cannot be used with --globalSession or --newGlobalSession", "Choose a named session or the global session.")
 			}
 			input, err := ResolveRunInput(RunInput{Prompt: prompt, Model: model, SessionID: sessionID, Provider: providerName, Permissions: permissions})
 			if err != nil {
@@ -131,15 +140,30 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 
 			var runSessionID string
 			var record appsession.Record
+			runPrompt := prompt
 			if noSession {
 				runSessionID = appsession.GenerateSessionID()
 			} else {
+				startSessionID := sessionID
+				if usesGlobalSession {
+					startSessionID = appsession.GlobalSessionID
+					if newGlobalSession {
+						if err := deps.SessionService.Delete(cmd.Context(), repoRoot, appsession.GlobalSessionID); err != nil {
+							return WrapRunError(err)
+						}
+					}
+				}
 				var err error
-				record, _, err = deps.SessionService.Start(cmd.Context(), appsession.StartOptions{RepoRoot: repoRoot, SessionID: sessionID, Model: model, Prompt: prompt})
+				record, _, err = deps.SessionService.Start(cmd.Context(), appsession.StartOptions{RepoRoot: repoRoot, SessionID: startSessionID, Model: model, Prompt: prompt})
 				if err != nil {
 					return WrapRunError(err)
 				}
 				runSessionID = record.SessionID
+				historyPath, err := deps.SessionService.HistoryPath(repoRoot, runSessionID)
+				if err != nil {
+					return WrapRunError(err)
+				}
+				runPrompt = appsession.BuildRememberedPrompt(record, prompt, historyPath)
 			}
 
 			// Create per-request prompt runner for non-default providers
@@ -160,7 +184,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 			}
 
 			result, err := deps.Runner.Run(cmd.Context(), agent.Request{
-				Prompt:       prompt,
+				Prompt:       runPrompt,
 				Model:        model,
 				SessionID:    runSessionID,
 				RepoRoot:     repoRoot,
@@ -204,6 +228,8 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 	cmd.Flags().StringVar(&permissions, "permissions", "", "comma-separated tool permissions: read, write, execute, or none")
 	cmd.Flags().BoolVar(&verbose, "verbose", false, "show request timing and token usage on stderr")
 	cmd.Flags().BoolVar(&noSession, "no-session", false, "run without saving session history")
+	cmd.Flags().BoolVar(&globalSession, "globalSession", false, "continue the repository global session history")
+	cmd.Flags().BoolVar(&newGlobalSession, "newGlobalSession", false, "wipe and start the repository global session history")
 	cmd.AddCommand(newLoginCommand(deps))
 	return cmd
 }

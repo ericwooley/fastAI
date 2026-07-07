@@ -41,6 +41,32 @@ func TestServiceStartResumeAndRepoMatch(t *testing.T) {
 	}
 }
 
+func TestServiceDeleteRemovesSession(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store := NewFileStore(filepath.Join(t.TempDir(), "sessions"))
+	service := NewService(store, func() time.Time { return time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC) })
+	repo := makeRepo(t)
+
+	record, _, err := service.Start(ctx, StartOptions{RepoRoot: repo, SessionID: GlobalSessionID, Model: "m", Prompt: "first"})
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	if err := service.Complete(ctx, record, "done"); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	if err := service.Delete(ctx, repo, GlobalSessionID); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	repoKey, err := RepoKey(repo)
+	if err != nil {
+		t.Fatalf("repo key: %v", err)
+	}
+	if _, err := store.Load(ctx, repoKey, GlobalSessionID); err != ErrSessionNotFound {
+		t.Fatalf("expected missing session after delete, got %v", err)
+	}
+}
+
 func makeRepo(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()

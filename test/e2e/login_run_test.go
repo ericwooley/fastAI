@@ -164,6 +164,110 @@ func TestCLINoSessionRejectsExplicitSession(t *testing.T) {
 	}
 }
 
+func TestCLIGlobalSessionAddsPriorHistoryToPrompt(t *testing.T) {
+	t.Parallel()
+	repo := tempRepo(t)
+	runner := &fakeRunner{result: agent.Result{Summary: "first summary"}}
+	deps := deps(t, repo, runner)
+	if err := deps.AuthStore.Save(context.Background(), auth.Account{Provider: auth.ProviderGitHubCopilot, AccessToken: "token", OAuthClientID: auth.CopilotClientID}); err != nil {
+		t.Fatalf("save auth: %v", err)
+	}
+
+	code, _, errOut := execute(t, []string{"--globalSession", "--provider", "github-copilot", "--model", "github:gpt-4.1", "--permissions", "all", "first global task"}, deps)
+	if code != 0 {
+		t.Fatalf("first run code=%d err=%q", code, errOut)
+	}
+	runner.result.Summary = "second summary"
+	code, _, errOut = execute(t, []string{"--globalSession", "--provider", "github-copilot", "--model", "github:gpt-4.1", "--permissions", "all", "second global task"}, deps)
+	if code != 0 {
+		t.Fatalf("second run code=%d err=%q", code, errOut)
+	}
+	if len(runner.seen) != 2 {
+		t.Fatalf("runner calls = %+v", runner.seen)
+	}
+	secondPrompt := runner.seen[1].Prompt
+	for _, want := range []string{"Persisted session context", "first global task", "first summary", "Current request:\nsecond global task"} {
+		if !strings.Contains(secondPrompt, want) {
+			t.Fatalf("global prompt missing %q:\n%s", want, secondPrompt)
+		}
+	}
+	if runner.seen[1].SessionID != appsession.GlobalSessionID {
+		t.Fatalf("expected global session id, got %+v", runner.seen[1])
+	}
+}
+
+func TestCLINewGlobalSessionClearsPriorHistory(t *testing.T) {
+	t.Parallel()
+	repo := tempRepo(t)
+	runner := &fakeRunner{result: agent.Result{Summary: "first summary"}}
+	deps := deps(t, repo, runner)
+	if err := deps.AuthStore.Save(context.Background(), auth.Account{Provider: auth.ProviderGitHubCopilot, AccessToken: "token", OAuthClientID: auth.CopilotClientID}); err != nil {
+		t.Fatalf("save auth: %v", err)
+	}
+
+	code, _, errOut := execute(t, []string{"--globalSession", "--provider", "github-copilot", "--model", "github:gpt-4.1", "--permissions", "all", "first global task"}, deps)
+	if code != 0 {
+		t.Fatalf("first run code=%d err=%q", code, errOut)
+	}
+	code, _, errOut = execute(t, []string{"--newGlobalSession", "--provider", "github-copilot", "--model", "github:gpt-4.1", "--permissions", "all", "fresh global task"}, deps)
+	if code != 0 {
+		t.Fatalf("new global run code=%d err=%q", code, errOut)
+	}
+	if len(runner.seen) != 2 {
+		t.Fatalf("runner calls = %+v", runner.seen)
+	}
+	if got := runner.seen[1].Prompt; got != "fresh global task" {
+		t.Fatalf("expected reset prompt without history, got:\n%s", got)
+	}
+}
+
+func TestCLIGlobalSessionRejectsOtherSessionModes(t *testing.T) {
+	t.Parallel()
+	repo := tempRepo(t)
+	runner := &fakeRunner{result: agent.Result{Summary: "ok"}}
+	deps := deps(t, repo, runner)
+
+	code, _, errOut := execute(t, []string{"--globalSession", "--session", "follow-up", "--provider", "github-copilot", "--model", "github:gpt-4.1", "--permissions", "all", "small task"}, deps)
+	if code != 2 || !strings.Contains(errOut, "--session cannot be used with --globalSession or --newGlobalSession") {
+		t.Fatalf("code=%d err=%q", code, errOut)
+	}
+	code, _, errOut = execute(t, []string{"--newGlobalSession", "--no-session", "--provider", "github-copilot", "--model", "github:gpt-4.1", "--permissions", "all", "small task"}, deps)
+	if code != 2 || !strings.Contains(errOut, "--no-session cannot be used with --globalSession or --newGlobalSession") {
+		t.Fatalf("code=%d err=%q", code, errOut)
+	}
+	if len(runner.seen) != 0 {
+		t.Fatalf("runner should not be called: %+v", runner.seen)
+	}
+}
+
+func TestCLIExplicitSessionAddsPriorHistoryToPrompt(t *testing.T) {
+	t.Parallel()
+	repo := tempRepo(t)
+	runner := &fakeRunner{result: agent.Result{Summary: "named summary"}}
+	deps := deps(t, repo, runner)
+	if err := deps.AuthStore.Save(context.Background(), auth.Account{Provider: auth.ProviderGitHubCopilot, AccessToken: "token", OAuthClientID: auth.CopilotClientID}); err != nil {
+		t.Fatalf("save auth: %v", err)
+	}
+
+	code, _, errOut := execute(t, []string{"--session", "feature", "--provider", "github-copilot", "--model", "github:gpt-4.1", "--permissions", "all", "first named task"}, deps)
+	if code != 0 {
+		t.Fatalf("first run code=%d err=%q", code, errOut)
+	}
+	code, _, errOut = execute(t, []string{"--session", "feature", "--provider", "github-copilot", "--model", "github:gpt-4.1", "--permissions", "all", "second named task"}, deps)
+	if code != 0 {
+		t.Fatalf("second run code=%d err=%q", code, errOut)
+	}
+	if len(runner.seen) != 2 {
+		t.Fatalf("runner calls = %+v", runner.seen)
+	}
+	secondPrompt := runner.seen[1].Prompt
+	for _, want := range []string{"Persisted session context", "first named task", "named summary", "Current request:\nsecond named task"} {
+		if !strings.Contains(secondPrompt, want) {
+			t.Fatalf("session prompt missing %q:\n%s", want, secondPrompt)
+		}
+	}
+}
+
 func TestCLIMissingModelFailsValidation(t *testing.T) {
 	clearFastAIDefaults(t)
 	repo := tempRepo(t)

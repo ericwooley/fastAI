@@ -46,6 +46,9 @@ func NormalizeRepoPath(repoRoot string, requested string) (string, string, error
 		return "", "", err
 	}
 	rootAbs = filepath.Clean(rootAbs)
+	if realRoot, err := filepath.EvalSymlinks(rootAbs); err == nil {
+		rootAbs = filepath.Clean(realRoot)
+	}
 
 	target := requested
 	if !filepath.IsAbs(target) {
@@ -56,20 +59,58 @@ func NormalizeRepoPath(repoRoot string, requested string) (string, string, error
 		return "", "", err
 	}
 	targetAbs = filepath.Clean(targetAbs)
-	if err := ensureWithin(rootAbs, targetAbs); err != nil {
+	boundaryAbs, err := canonicalPathForBoundary(targetAbs)
+	if err != nil {
 		return "", "", err
 	}
-	if err := ensureExistingParentWithin(rootAbs, targetAbs); err != nil {
+	if err := ensureWithin(rootAbs, boundaryAbs); err != nil {
 		return "", "", err
 	}
-	rel, err := filepath.Rel(rootAbs, targetAbs)
+	if err := ensureExistingParentWithin(rootAbs, boundaryAbs); err != nil {
+		return "", "", err
+	}
+	rel, err := filepath.Rel(rootAbs, boundaryAbs)
 	if err != nil {
 		return "", "", err
 	}
 	if rel == "." {
-		return rel, targetAbs, nil
+		return rel, boundaryAbs, nil
 	}
-	return filepath.ToSlash(rel), targetAbs, nil
+	return filepath.ToSlash(rel), boundaryAbs, nil
+}
+
+func canonicalPathForBoundary(targetAbs string) (string, error) {
+	if _, err := os.Stat(targetAbs); err == nil {
+		realPath, err := filepath.EvalSymlinks(targetAbs)
+		if err != nil {
+			return "", err
+		}
+		return filepath.Clean(realPath), nil
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
+
+	path := filepath.Dir(targetAbs)
+	for {
+		if _, err := os.Stat(path); err == nil {
+			realPath, err := filepath.EvalSymlinks(path)
+			if err != nil {
+				return "", err
+			}
+			rel, err := filepath.Rel(path, targetAbs)
+			if err != nil {
+				return "", err
+			}
+			return filepath.Clean(filepath.Join(realPath, rel)), nil
+		} else if !os.IsNotExist(err) {
+			return "", err
+		}
+		parent := filepath.Dir(path)
+		if parent == path {
+			return "", ErrUnsafePath
+		}
+		path = parent
+	}
 }
 
 func ensureExistingParentWithin(rootAbs string, targetAbs string) error {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -28,21 +29,32 @@ type RunRecord struct {
 	FinishedAt time.Time `json:"finished_at"`
 }
 
+type CompactedHistoryRecord struct {
+	MessageStart int       `json:"message_start"`
+	MessageEnd   int       `json:"message_end"`
+	StartedAt    time.Time `json:"started_at"`
+	FinishedAt   time.Time `json:"finished_at"`
+	Summary      string    `json:"summary"`
+}
+
 type Record struct {
-	SessionID  string      `json:"session_id"`
-	RepoKey    string      `json:"repo_key"`
-	Model      string      `json:"model"`
-	Status     Status      `json:"status"`
-	CreatedAt  time.Time   `json:"created_at"`
-	UpdatedAt  time.Time   `json:"updated_at"`
-	LastPrompt string      `json:"last_prompt"`
-	LastRunID  string      `json:"last_run_id"`
-	Runs       []RunRecord `json:"runs"`
+	SessionID        string                   `json:"session_id"`
+	RepoKey          string                   `json:"repo_key"`
+	Model            string                   `json:"model"`
+	Status           Status                   `json:"status"`
+	CreatedAt        time.Time                `json:"created_at"`
+	UpdatedAt        time.Time                `json:"updated_at"`
+	LastPrompt       string                   `json:"last_prompt"`
+	LastRunID        string                   `json:"last_run_id"`
+	Runs             []RunRecord              `json:"runs"`
+	CompactedHistory []CompactedHistoryRecord `json:"compacted_history,omitempty"`
 }
 
 type Store interface {
 	Save(context.Context, Record) error
 	Load(context.Context, string, string) (Record, error)
+	Delete(context.Context, string, string) error
+	Path(string, string) string
 }
 
 type FileStore struct {
@@ -98,6 +110,23 @@ func (s *FileStore) Load(_ context.Context, repoKey string, sessionID string) (R
 		return Record{}, ErrRepoMismatch
 	}
 	return record, nil
+}
+
+func (s *FileStore) Delete(_ context.Context, repoKey string, sessionID string) error {
+	if err := ValidateSessionID(sessionID); err != nil {
+		return err
+	}
+	if strings.TrimSpace(repoKey) == "" {
+		return fmt.Errorf("repo key is required")
+	}
+	if err := os.Remove(s.recordPath(repoKey, sessionID)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
+func (s *FileStore) Path(repoKey string, sessionID string) string {
+	return s.recordPath(repoKey, sessionID)
 }
 
 func (s *FileStore) recordPath(repoKey string, sessionID string) string {
