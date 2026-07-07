@@ -146,6 +146,9 @@ Opens a browser for GitHub device-flow authentication. Copilot credentials are s
 fastAI --provider github-copilot --model github:gpt-4.1 --permissions all "Refactor the auth module and add tests"
 ```
 
+If you omit the prompt or pass an empty prompt, fastAI opens `$VISUAL`, then `$EDITOR`, then `vi`
+so you can write the request in a temporary file. Saving and closing the editor submits that text.
+
 Each run must resolve `provider`, `model`, and `permissions` from either flags or matching defaults:
 
 - `--provider` or `FASTAI_DEFAULT_PROVIDER`

@@ -103,6 +103,60 @@ func TestCLIUsesEnvironmentDefaults(t *testing.T) {
 	}
 }
 
+func TestCLIEmptyPromptReadsFromEditor(t *testing.T) {
+	t.Parallel()
+	repo := tempRepo(t)
+	runner := &fakeRunner{result: agent.Result{Summary: "ok"}}
+	deps := deps(t, repo, runner)
+	deps.Editor = func(context.Context) (string, error) { return "prompt from editor", nil }
+	if err := deps.AuthStore.Save(context.Background(), auth.Account{Provider: auth.ProviderGitHubCopilot, AccessToken: "token", OAuthClientID: auth.CopilotClientID}); err != nil {
+		t.Fatalf("save auth: %v", err)
+	}
+
+	code, out, errOut := execute(t, []string{"--provider", "github-copilot", "--model", "github:gpt-4.1", "--permissions", "all"}, deps)
+	if code != 0 || strings.TrimSpace(out) != "ok" {
+		t.Fatalf("run code=%d out=%q err=%q", code, out, errOut)
+	}
+	if len(runner.seen) != 1 || runner.seen[0].Prompt != "prompt from editor" {
+		t.Fatalf("runner saw unexpected request: %+v", runner.seen)
+	}
+}
+
+func TestCLIEmptyEditorPromptFailsValidation(t *testing.T) {
+	t.Parallel()
+	repo := tempRepo(t)
+	runner := &fakeRunner{result: agent.Result{Summary: "ok"}}
+	deps := deps(t, repo, runner)
+	deps.Editor = func(context.Context) (string, error) { return " \n\t ", nil }
+
+	code, _, errOut := execute(t, []string{"--provider", "github-copilot", "--model", "github:gpt-4.1", "--permissions", "all"}, deps)
+	if code != 2 || !strings.Contains(errOut, "prompt is required") {
+		t.Fatalf("code=%d err=%q", code, errOut)
+	}
+	if len(runner.seen) != 0 {
+		t.Fatalf("runner should not be called: %+v", runner.seen)
+	}
+}
+
+func TestCLIEmptyPromptValidatesFlagsBeforeEditor(t *testing.T) {
+	clearFastAIDefaults(t)
+	repo := tempRepo(t)
+	calledEditor := false
+	deps := deps(t, repo, &fakeRunner{})
+	deps.Editor = func(context.Context) (string, error) {
+		calledEditor = true
+		return "prompt from editor", nil
+	}
+
+	code, _, errOut := execute(t, []string{"--provider", "github-copilot", "--permissions", "all"}, deps)
+	if code != 2 || !strings.Contains(errOut, "--model is required") {
+		t.Fatalf("code=%d err=%q", code, errOut)
+	}
+	if calledEditor {
+		t.Fatalf("editor should not open before non-prompt validation succeeds")
+	}
+}
+
 func TestCLIFlagsOverrideEnvironmentDefaults(t *testing.T) {
 	t.Setenv("FASTAI_DEFAULT_PROVIDER", "openai")
 	t.Setenv("FASTAI_DEFAULT_MODEL", "env-model")

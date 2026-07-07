@@ -24,12 +24,14 @@ import (
 type Dependencies struct {
 	Out            io.Writer
 	Err            io.Writer
+	In             io.Reader
 	AuthStore      auth.Store
 	Authenticator  auth.Authenticator
 	SessionService *appsession.Service
 	Runner         agent.Runner
 	RepoRoot       string
 	Now            func() time.Time
+	Editor         PromptEditor
 }
 
 func DefaultDependencies(out io.Writer, errw io.Writer) Dependencies {
@@ -59,6 +61,7 @@ func DefaultDependencies(out io.Writer, errw io.Writer) Dependencies {
 	return Dependencies{
 		Out:            out,
 		Err:            errw,
+		In:             os.Stdin,
 		AuthStore:      auth.NewFileStore(filepath.Join(configDir, "auth.json")),
 		Authenticator:  authenticator,
 		SessionService: appsession.NewService(sessionStore, now),
@@ -70,6 +73,7 @@ func DefaultDependencies(out io.Writer, errw io.Writer) Dependencies {
 		),
 		RepoRoot: repoRoot,
 		Now:      now,
+		Editor:   NewPromptEditor(os.Stdin, out, errw),
 	}
 }
 
@@ -116,6 +120,18 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if strings.TrimSpace(input.Prompt) == "" {
+				inputWithoutPromptValidation := input
+				inputWithoutPromptValidation.Prompt = "editor prompt placeholder"
+				if err := ValidateRunInput(inputWithoutPromptValidation); err != nil {
+					return err
+				}
+				editedPrompt, err := deps.Editor(cmd.Context())
+				if err != nil {
+					return WrapError(ExitAgent, "editor prompt failed", "Set VISUAL or EDITOR to a working editor, then retry.", err)
+				}
+				input.Prompt = editedPrompt
+			}
 			if err := ValidateRunInput(input); err != nil {
 				return err
 			}
@@ -140,7 +156,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 
 			var runSessionID string
 			var record appsession.Record
-			runPrompt := prompt
+			runPrompt := input.Prompt
 			if noSession {
 				runSessionID = appsession.GenerateSessionID()
 			} else {
@@ -154,7 +170,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 					}
 				}
 				var err error
-				record, _, err = deps.SessionService.Start(cmd.Context(), appsession.StartOptions{RepoRoot: repoRoot, SessionID: startSessionID, Model: model, Prompt: prompt})
+				record, _, err = deps.SessionService.Start(cmd.Context(), appsession.StartOptions{RepoRoot: repoRoot, SessionID: startSessionID, Model: model, Prompt: input.Prompt})
 				if err != nil {
 					return WrapRunError(err)
 				}
@@ -163,7 +179,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 				if err != nil {
 					return WrapRunError(err)
 				}
-				runPrompt = appsession.BuildRememberedPrompt(record, prompt, historyPath)
+				runPrompt = appsession.BuildRememberedPrompt(record, input.Prompt, historyPath)
 			}
 
 			// Create per-request prompt runner for non-default providers
@@ -264,6 +280,9 @@ func (d Dependencies) withDefaults() Dependencies {
 	if d.Now == nil {
 		d.Now = time.Now
 	}
+	if d.In == nil {
+		d.In = os.Stdin
+	}
 	if d.AuthStore == nil || d.Authenticator == nil || d.SessionService == nil || d.Runner == nil {
 		defaults := DefaultDependencies(d.Out, d.Err)
 		if d.AuthStore == nil {
@@ -281,6 +300,12 @@ func (d Dependencies) withDefaults() Dependencies {
 		if d.RepoRoot == "" {
 			d.RepoRoot = defaults.RepoRoot
 		}
+		if d.Editor == nil {
+			d.Editor = defaults.Editor
+		}
+	}
+	if d.Editor == nil {
+		d.Editor = NewPromptEditor(d.In, d.Out, d.Err)
 	}
 	if d.RepoRoot == "" {
 		panic(fmt.Sprintf("%s", "repo root dependency is empty"))
