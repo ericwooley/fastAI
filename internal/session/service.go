@@ -101,6 +101,17 @@ func (s *Service) Delete(ctx context.Context, repoRoot string, sessionID string)
 	return s.store.Delete(ctx, repoKey, sessionID)
 }
 
+func (s *Service) Load(ctx context.Context, repoRoot string, sessionID string) (Record, error) {
+	repoKey, err := RepoKey(repoRoot)
+	if err != nil {
+		return Record{}, err
+	}
+	if err := ValidateSessionID(sessionID); err != nil {
+		return Record{}, err
+	}
+	return s.store.Load(ctx, repoKey, sessionID)
+}
+
 func (s *Service) HistoryPath(repoRoot string, sessionID string) (string, error) {
 	repoKey, err := RepoKey(repoRoot)
 	if err != nil {

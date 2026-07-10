@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -98,8 +99,9 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 	var noSession bool
 	var globalSession bool
 	var newGlobalSession bool
+	var history string
 	cmd := &cobra.Command{
-		Use:           "fastAI --provider <provider> --model <model> [--session <identifier>] [--globalSession] <prompt>",
+		Use:           "fastAI --provider <provider> --model <model> [--session <identifier>] [--globalSession] [--history [count]] <prompt>",
 		Short:         "Run an autonomous coding agent",
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -107,6 +109,9 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prompt := strings.Join(args, " ")
 			usesGlobalSession := globalSession || newGlobalSession
+			if cmd.Flags().Changed("history") {
+				return showSessionHistory(cmd, deps, sessionID, noSession, globalSession, newGlobalSession, history, args)
+			}
 			if noSession && strings.TrimSpace(sessionID) != "" {
 				return NewError(ExitValidation, "--no-session cannot be used with --session", "Remove one of the session flags and retry.")
 			}
@@ -246,8 +251,76 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 	cmd.Flags().BoolVar(&noSession, "no-session", false, "run without saving session history")
 	cmd.Flags().BoolVar(&globalSession, "globalSession", false, "continue the repository global session history")
 	cmd.Flags().BoolVar(&newGlobalSession, "newGlobalSession", false, "wipe and start the repository global session history")
+	cmd.Flags().StringVar(&history, "history", "", "show the selected session history, defaulting to the last 5 conversations")
+	cmd.Flags().Lookup("history").NoOptDefVal = "5"
 	cmd.AddCommand(newLoginCommand(deps))
 	return cmd
+}
+
+func showSessionHistory(cmd *cobra.Command, deps Dependencies, sessionID string, noSession bool, globalSession bool, newGlobalSession bool, history string, args []string) error {
+	if noSession {
+		return NewError(ExitValidation, "--no-session cannot be used with --history", "Choose a saved session to inspect.")
+	}
+	if newGlobalSession {
+		return NewError(ExitValidation, "--newGlobalSession cannot be used with --history", "Use --history to inspect history or --newGlobalSession to reset it.")
+	}
+	if strings.TrimSpace(sessionID) != "" && globalSession {
+		return NewError(ExitValidation, "--session cannot be used with --globalSession", "Choose a named session or the global session.")
+	}
+
+	limit, err := resolveHistoryLimit(history, args)
+	if err != nil {
+		return err
+	}
+	repoRoot := deps.RepoRoot
+	if repoRoot == "" {
+		wd, _ := os.Getwd()
+		found, err := workspace.FindRepoRoot(wd)
+		if err != nil {
+			return WrapError(ExitValidation, "repository root not found", "Run fastAI from inside a git repository.", err)
+		}
+		repoRoot = found
+	}
+
+	selectedSessionID := appsession.GlobalSessionID
+	if strings.TrimSpace(sessionID) != "" {
+		selectedSessionID = appsession.HashSessionID(sessionID)
+	}
+	record, err := deps.SessionService.Load(cmd.Context(), repoRoot, selectedSessionID)
+	if err != nil {
+		return WrapRunError(err)
+	}
+	if deps.Out != nil {
+		fmt.Fprint(deps.Out, appsession.FormatConversationHistory(record, limit))
+	}
+	return nil
+}
+
+func resolveHistoryLimit(value string, args []string) (int, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		value = "5"
+	}
+	if len(args) > 0 {
+		if len(args) == 1 && value == "5" {
+			if parsed, err := strconv.Atoi(strings.TrimSpace(args[0])); err == nil {
+				return validateHistoryLimit(parsed)
+			}
+		}
+		return 0, NewError(ExitValidation, "--history cannot be used with a prompt", "Use `fastAI --history` or `fastAI --history <number>`.")
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, NewError(ExitValidation, "--history must be a positive number", "Use `fastAI --history` or `fastAI --history 10`.")
+	}
+	return validateHistoryLimit(parsed)
+}
+
+func validateHistoryLimit(limit int) (int, error) {
+	if limit <= 0 {
+		return 0, NewError(ExitValidation, "--history must be a positive number", "Use `fastAI --history` or `fastAI --history 10`.")
+	}
+	return limit, nil
 }
 
 func resolveAccessToken(ctx context.Context, deps Dependencies, providerID string) (string, error) {

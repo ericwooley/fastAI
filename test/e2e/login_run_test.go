@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -247,6 +248,83 @@ func TestCLIGlobalSessionAddsPriorHistoryToPrompt(t *testing.T) {
 	}
 	if runner.seen[1].SessionID != appsession.GlobalSessionID {
 		t.Fatalf("expected global session id, got %+v", runner.seen[1])
+	}
+}
+
+func TestCLIHistoryShowsGlobalSessionByDefault(t *testing.T) {
+	t.Parallel()
+	repo := tempRepo(t)
+	runner := &fakeRunner{}
+	deps := deps(t, repo, runner)
+	ctx := context.Background()
+	for i := 1; i <= 6; i++ {
+		record, _, err := deps.SessionService.Start(ctx, appsession.StartOptions{RepoRoot: repo, SessionID: appsession.GlobalSessionID, Model: "github:gpt-4.1", Prompt: fmt.Sprintf("input %d", i)})
+		if err != nil {
+			t.Fatalf("start global session %d: %v", i, err)
+		}
+		if err := deps.SessionService.Complete(ctx, record, fmt.Sprintf("output %d", i)); err != nil {
+			t.Fatalf("complete global session %d: %v", i, err)
+		}
+	}
+
+	code, out, errOut := execute(t, []string{"--history"}, deps)
+	if code != 0 || errOut != "" {
+		t.Fatalf("history code=%d out=%q err=%q", code, out, errOut)
+	}
+	for _, want := range []string{
+		"Session: global",
+		"Showing 5 of 6 conversations.",
+		"Input:\ninput 2",
+		"Output:\noutput 6",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("history missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "input 1") || strings.Contains(out, "output 1") {
+		t.Fatalf("history should default to the last 5 conversations:\n%s", out)
+	}
+	if len(runner.seen) != 0 {
+		t.Fatalf("history should not run the agent: %+v", runner.seen)
+	}
+}
+
+func TestCLIHistoryAcceptsCountAndNamedSession(t *testing.T) {
+	t.Parallel()
+	repo := tempRepo(t)
+	runner := &fakeRunner{}
+	deps := deps(t, repo, runner)
+	ctx := context.Background()
+	sessionID := appsession.HashSessionID("feature")
+	for i := 1; i <= 3; i++ {
+		record, _, err := deps.SessionService.Start(ctx, appsession.StartOptions{RepoRoot: repo, SessionID: sessionID, Model: "github:gpt-4.1", Prompt: fmt.Sprintf("named input %d", i)})
+		if err != nil {
+			t.Fatalf("start named session %d: %v", i, err)
+		}
+		if err := deps.SessionService.Complete(ctx, record, fmt.Sprintf("named output %d", i)); err != nil {
+			t.Fatalf("complete named session %d: %v", i, err)
+		}
+	}
+
+	code, out, errOut := execute(t, []string{"--session", "feature", "--history", "2"}, deps)
+	if code != 0 || errOut != "" {
+		t.Fatalf("history code=%d out=%q err=%q", code, out, errOut)
+	}
+	for _, want := range []string{
+		"Session: " + sessionID,
+		"Showing 2 of 3 conversations.",
+		"Input:\nnamed input 2",
+		"Output:\nnamed output 3",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("history missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "named input 1") || strings.Contains(out, "named output 1") {
+		t.Fatalf("history should honor the requested count:\n%s", out)
+	}
+	if len(runner.seen) != 0 {
+		t.Fatalf("history should not run the agent: %+v", runner.seen)
 	}
 }
 

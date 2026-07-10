@@ -99,6 +99,7 @@ make login
 - **Command execution** — run shell commands scoped to the repository
 - **Session persistence** — resume prior work as a conversation with `--session <id>`
 - **Global session** — reuse or reset a repository-wide conversation with `--globalSession` and `--newGlobalSession`
+- **Session history** — inspect recent saved chat inputs and outputs with `--history`
 - **Model selection** via `--model <model>` or `FASTAI_DEFAULT_MODEL`
 - **Tool permissions** via `--permissions <list>` or `FASTAI_DEFAULT_PERMISSIONS`
 - **Repository safety** — all file and command operations are confined to the repo root
@@ -189,6 +190,18 @@ fastAI --provider github-copilot --model github:gpt-4.1 --permissions all --newG
 
 `--globalSession` uses a repository-wide session named `global`. `--newGlobalSession` deletes that
 stored conversation before running the new prompt.
+
+### Inspect session history
+
+```bash
+fastAI --history
+fastAI --history 20
+fastAI --session my-task --history 10
+```
+
+`--history` prints saved chat inputs and outputs for the selected session without starting an agent
+run. It defaults to the repository global session and shows the last 5 conversations unless you pass
+a count.
 
 ## Exit Codes
 

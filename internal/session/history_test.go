@@ -101,3 +101,57 @@ func TestBuildGlobalPromptIncludesCompactedRecentAndHistoryPath(t *testing.T) {
 		t.Fatalf("prompt should not expand compacted runs:\n%s", prompt)
 	}
 }
+
+func TestFormatConversationHistoryShowsRecentInputsAndOutputs(t *testing.T) {
+	t.Parallel()
+	record := Record{
+		SessionID: GlobalSessionID,
+		Runs: []RunRecord{
+			{
+				RunID:      "run-old",
+				Prompt:     "old input",
+				Outcome:    "succeeded",
+				Summary:    "old output",
+				StartedAt:  time.Date(2026, 7, 7, 8, 0, 0, 0, time.UTC),
+				FinishedAt: time.Date(2026, 7, 7, 8, 1, 0, 0, time.UTC),
+			},
+			{
+				RunID:      "run-new",
+				Prompt:     "new input\nwith detail",
+				Outcome:    "failed",
+				Summary:    "new output\nwith detail",
+				StartedAt:  time.Date(2026, 7, 7, 9, 0, 0, 0, time.UTC),
+				FinishedAt: time.Date(2026, 7, 7, 9, 1, 0, 0, time.UTC),
+			},
+		},
+	}
+
+	history := FormatConversationHistory(record, 1)
+	for _, want := range []string{
+		"Session: global",
+		"Showing 1 of 2 conversations.",
+		"--- Conversation 2 ---",
+		"Run: run-new",
+		"Started: 2026-07-07T09:00:00Z",
+		"Outcome: failed",
+		"Input:\nnew input\nwith detail",
+		"Output:\nnew output\nwith detail",
+	} {
+		if !strings.Contains(history, want) {
+			t.Fatalf("history missing %q:\n%s", want, history)
+		}
+	}
+	if strings.Contains(history, "old input") || strings.Contains(history, "old output") {
+		t.Fatalf("history should only include recent runs:\n%s", history)
+	}
+}
+
+func TestFormatConversationHistoryHandlesEmptySession(t *testing.T) {
+	t.Parallel()
+	history := FormatConversationHistory(Record{SessionID: "session-empty"}, 5)
+	for _, want := range []string{"Session: session-empty", "No conversation history."} {
+		if !strings.Contains(history, want) {
+			t.Fatalf("history missing %q:\n%s", want, history)
+		}
+	}
+}

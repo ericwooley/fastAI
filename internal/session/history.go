@@ -24,6 +24,50 @@ func BuildRememberedPrompt(record Record, currentPrompt string, historyPath stri
 	return strings.TrimSpace(history + "\n\nCurrent request:\n" + currentPrompt)
 }
 
+func FormatConversationHistory(record Record, limit int) string {
+	var b strings.Builder
+	b.WriteString("Session: ")
+	b.WriteString(record.SessionID)
+	b.WriteString("\n")
+	if len(record.Runs) == 0 {
+		b.WriteString("No conversation history.\n")
+		return b.String()
+	}
+
+	selected := lastRuns(record.Runs, limit)
+	b.WriteString(fmt.Sprintf("Showing %d of %d conversations.\n", len(selected), len(record.Runs)))
+	for i, run := range selected {
+		conversationNumber := len(record.Runs) - len(selected) + i + 1
+		b.WriteString(fmt.Sprintf("\n--- Conversation %d ---\n", conversationNumber))
+		if strings.TrimSpace(run.RunID) != "" {
+			b.WriteString("Run: ")
+			b.WriteString(run.RunID)
+			b.WriteString("\n")
+		}
+		if !run.StartedAt.IsZero() {
+			b.WriteString("Started: ")
+			b.WriteString(formatTime(run.StartedAt))
+			b.WriteString("\n")
+		}
+		if !run.FinishedAt.IsZero() {
+			b.WriteString("Finished: ")
+			b.WriteString(formatTime(run.FinishedAt))
+			b.WriteString("\n")
+		}
+		if strings.TrimSpace(run.Outcome) != "" {
+			b.WriteString("Outcome: ")
+			b.WriteString(strings.TrimSpace(run.Outcome))
+			b.WriteString("\n")
+		}
+		b.WriteString("Input:\n")
+		b.WriteString(strings.TrimSpace(run.Prompt))
+		b.WriteString("\n\nOutput:\n")
+		b.WriteString(strings.TrimSpace(run.Summary))
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
 func CompactHistory(runs []RunRecord, existing []CompactedHistoryRecord, everyMessages int) []CompactedHistoryRecord {
 	if everyMessages <= 0 {
 		return copyCompactedHistory(existing)
@@ -69,6 +113,16 @@ func rememberedPromptHistory(record Record, historyPath string) string {
 		}
 	}
 	return strings.TrimSpace(b.String())
+}
+
+func lastRuns(runs []RunRecord, limit int) []RunRecord {
+	if len(runs) == 0 {
+		return nil
+	}
+	if limit <= 0 || limit >= len(runs) {
+		return runs
+	}
+	return runs[len(runs)-limit:]
 }
 
 func recentRuns(record Record) []RunRecord {
