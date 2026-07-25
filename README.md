@@ -4,7 +4,22 @@ A non-interactive, autonomous CLI coding agent. Invoke it from your terminal ins
 
 ## Install
 
-### Option A — install with make (recommended)
+### Homebrew (recommended)
+
+Install the release binary directly from the `ericwooley/apps` tap:
+
+```bash
+brew install ericwooley/apps/fastai
+fastAI --version
+```
+
+The fully qualified install command adds the tap automatically. Upgrade later releases with:
+
+```bash
+brew upgrade ericwooley/apps/fastai
+```
+
+### Build and install with make
 
 ```bash
 git clone https://github.com/ericwooley/fastAI.git
@@ -27,7 +42,7 @@ Override the destination with `FASTAI_INSTALL_DIR`:
 FASTAI_INSTALL_DIR="$HOME/bin" make install
 ```
 
-### Option B — build and move the binary manually
+### Build and move the binary manually
 
 ```bash
 git clone https://github.com/ericwooley/fastAI.git
@@ -48,21 +63,21 @@ mv tmp/bin/fastAI ~/.local/bin/
 mv tmp/bin/fastAI ~/bin/
 ```
 
-### Option C — go install
+### Go install
 
 ```bash
 go install github.com/ericwooley/fastAI/cmd/fastAI@latest
 ```
 
-Requires Go 1.24.x. The binary is placed in `$GOPATH/bin` or `~/go/bin`.
+Requires Go 1.25.x. The binary is placed in `$GOPATH/bin` or `~/go/bin`.
 
 ---
 
 ## Prerequisites
 
-- **Go 1.24.x**
 - Run from inside a Git repository
 - One configured AI provider: GitHub Copilot login or a supported provider API key
+- Go 1.25.x when building or installing from source
 
 ## Dev Quickstart
 
@@ -70,8 +85,9 @@ Requires Go 1.24.x. The binary is placed in `$GOPATH/bin` or `~/go/bin`.
 make help                     # Show available targets
 make build                    # Build tmp/bin/fastAI
 make install                  # Install fastAI into your user bin directory
+make install-hooks            # Install pre-commit and commit-msg checks
 make test                     # Run all tests
-make check                    # Format, vet, and test
+make check                    # Verify formatting, vet, and run all tests
 make run ARGS='--provider github-copilot --model github:gpt-4.1 --permissions all "Refactor the auth module and add tests"'
 ```
 
@@ -225,7 +241,7 @@ a count.
 make build                 # Build tmp/bin/fastAI
 make test                  # Run all tests (unit + integration + e2e)
 make vet                   # Static analysis
-make check                 # Format, vet, and test
+make check                 # Formatting, vet, tests, and release tooling
 ```
 
 Test scopes:
@@ -236,10 +252,34 @@ make test-integration      # Integration tests (glue code)
 make test-e2e              # End-to-end CLI tests
 ```
 
+## Conventional Commits
+
+Install the repository hooks once after cloning:
+
+```bash
+make install-hooks
+```
+
+The `pre-commit` hook runs the quick formatting, internal-unit-test, and staged-whitespace checks. The `commit-msg` hook enforces [Conventional Commits](https://www.conventionalcommits.org/) because the commit message is not available during `pre-commit`. CI runs the complete suite.
+
+Use `fix:` or `perf:` for a patch release, `feat:` for a minor release, and add `!` after the type or a `BREAKING CHANGE:` footer for a major release. Scoped forms such as `feat(cli): ...` are supported. The other allowed types (`build`, `chore`, `ci`, `docs`, `refactor`, `revert`, `style`, and `test`) do not publish a release by themselves. CI applies the same policy to every non-merge commit in a pull request or push.
+
+## Releases
+
+Every push to `main` plans a release from the Conventional Commits since the latest Go-compatible `vX.Y.Z` tag. When a release is required, GitHub Actions:
+
+1. runs the complete validation suite;
+2. builds versioned release archives for macOS and Linux on ARM64 and AMD64, plus Windows AMD64;
+3. publishes the plain semantic-version tag and GitHub release with generated notes and SHA-256 checksums;
+4. renders, installs, and tests `Formula/fastai.rb`, then updates `ericwooley/homebrew-apps`.
+
+Publishing GitHub releases and updating Homebrew run in the `release` environment. In `ericwooley/fastAI`, create that environment under **Settings → Environments**, then add `TAP_GITHUB_TOKEN` as an environment secret. Use a fine-grained personal access token limited to `ericwooley/homebrew-apps` with **Contents: Read and write**. If only the tap update needs to be retried, run **Update Homebrew** with the existing plain version such as `0.1.0`. To rebuild or repair a partial GitHub release, run **Release** with that existing plain version; the workflow rebuilds the tagged source, replaces the release assets, and retries Homebrew.
+
 ## Project Structure
 
 ```
 cmd/fastAI/          CLI entrypoint
+.github/workflows/   CI, semantic releases, and Homebrew publishing
 internal/
   agent/             Agent runner, ADK tools, GitHub Copilot adapter
   auth/              OAuth device flow, local token storage
@@ -247,6 +287,8 @@ internal/
   commandexec/       Repo-scoped shell command execution
   session/           Session lifecycle, persistence, ID management
   workspace/         File operations, repo root discovery, path safety
+packaging/homebrew/  Generated formula template
+scripts/             Local install, hooks, and release tooling
 specs/               Feature specifications and planning
 test/
   integration/       Integration tests
