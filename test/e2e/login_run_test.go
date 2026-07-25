@@ -68,6 +68,48 @@ func TestCLIPassesPermissionsToRunner(t *testing.T) {
 	}
 }
 
+func TestCLIPassesWorkingDirectoryToRunner(t *testing.T) {
+	t.Parallel()
+	repo := tempRepo(t)
+	workingDirectory := filepath.Join(repo, "services", "api")
+	if err := os.MkdirAll(workingDirectory, 0o755); err != nil {
+		t.Fatalf("mkdir working directory: %v", err)
+	}
+	runner := &fakeRunner{result: agent.Result{Summary: "ok"}}
+	deps := deps(t, repo, runner)
+	deps.WorkingDirectory = workingDirectory
+	if err := deps.AuthStore.Save(context.Background(), auth.Account{Provider: auth.ProviderGitHubCopilot, AccessToken: "token", OAuthClientID: auth.CopilotClientID}); err != nil {
+		t.Fatalf("save auth: %v", err)
+	}
+
+	code, _, errOut := execute(t, []string{"--provider", "github-copilot", "--model", "github:gpt-4.1", "--permissions", "none", "do work"}, deps)
+	if code != 0 {
+		t.Fatalf("code=%d err=%q", code, errOut)
+	}
+	if len(runner.seen) != 1 || runner.seen[0].WorkingDirectory != workingDirectory {
+		t.Fatalf("runner saw working directory: %+v", runner.seen)
+	}
+}
+
+func TestCLIDefaultsWorkingDirectoryToRepoRoot(t *testing.T) {
+	t.Parallel()
+	repo := tempRepo(t)
+	runner := &fakeRunner{result: agent.Result{Summary: "ok"}}
+	deps := deps(t, repo, runner)
+	deps.WorkingDirectory = ""
+	if err := deps.AuthStore.Save(context.Background(), auth.Account{Provider: auth.ProviderGitHubCopilot, AccessToken: "token", OAuthClientID: auth.CopilotClientID}); err != nil {
+		t.Fatalf("save auth: %v", err)
+	}
+
+	code, _, errOut := execute(t, []string{"--provider", "github-copilot", "--model", "github:gpt-4.1", "--permissions", "none", "do work"}, deps)
+	if code != 0 {
+		t.Fatalf("code=%d err=%q", code, errOut)
+	}
+	if len(runner.seen) != 1 || runner.seen[0].WorkingDirectory != repo {
+		t.Fatalf("runner saw working directory: %+v, want %q", runner.seen, repo)
+	}
+}
+
 func TestCLIRejectsInvalidPermissions(t *testing.T) {
 	t.Parallel()
 	repo := tempRepo(t)

@@ -100,6 +100,7 @@ make login
 - **Session persistence** — resume prior work as a conversation with `--session <id>`
 - **Global session** — reuse or reset a repository-wide conversation with `--globalSession` and `--newGlobalSession`
 - **Session history** — inspect recent saved chat inputs and outputs with `--history`
+- **Hierarchical repository instructions** — load `AGENTS.md` files from the repository root through the current working directory
 - **Model selection** via `--model <model>` or `FASTAI_DEFAULT_MODEL`
 - **Tool permissions** via `--permissions <list>` or `FASTAI_DEFAULT_PERMISSIONS`
 - **Repository safety** — all file and command operations are confined to the repo root
@@ -157,6 +158,11 @@ Each run must resolve `provider`, `model`, and `permissions` from either flags o
 - `--permissions` or `FASTAI_DEFAULT_PERMISSIONS`
 
 If any of those are missing after resolution, the CLI exits with a validation error.
+
+Before sending a request, fastAI loads each existing `AGENTS.md` along the path from the repository
+root to the current working directory. It appends those files to the system instruction in
+root-to-leaf order. When instructions conflict, a later file closer to the current working directory
+takes priority.
 
 ### Permissions
 
