@@ -23,16 +23,17 @@ import (
 )
 
 type Dependencies struct {
-	Out            io.Writer
-	Err            io.Writer
-	In             io.Reader
-	AuthStore      auth.Store
-	Authenticator  auth.Authenticator
-	SessionService *appsession.Service
-	Runner         agent.Runner
-	RepoRoot       string
-	Now            func() time.Time
-	Editor         PromptEditor
+	Out              io.Writer
+	Err              io.Writer
+	In               io.Reader
+	AuthStore        auth.Store
+	Authenticator    auth.Authenticator
+	SessionService   *appsession.Service
+	Runner           agent.Runner
+	RepoRoot         string
+	WorkingDirectory string
+	Now              func() time.Time
+	Editor           PromptEditor
 }
 
 func DefaultDependencies(out io.Writer, errw io.Writer) Dependencies {
@@ -72,9 +73,10 @@ func DefaultDependencies(out io.Writer, errw io.Writer) Dependencies {
 			models,
 			models,
 		),
-		RepoRoot: repoRoot,
-		Now:      now,
-		Editor:   NewPromptEditor(os.Stdin, out, errw),
+		RepoRoot:         repoRoot,
+		WorkingDirectory: wd,
+		Now:              now,
+		Editor:           NewPromptEditor(os.Stdin, out, errw),
 	}
 }
 
@@ -205,15 +207,16 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 			}
 
 			result, err := deps.Runner.Run(cmd.Context(), agent.Request{
-				Prompt:       runPrompt,
-				Model:        model,
-				SessionID:    runSessionID,
-				RepoRoot:     repoRoot,
-				AccessToken:  accessToken,
-				Provider:     input.Provider,
-				Permissions:  input.Permissions,
-				PromptRunner: runPromptRunner,
-				Progress:     newTelemetryProgress(deps.Err, verbose),
+				Prompt:           runPrompt,
+				Model:            model,
+				SessionID:        runSessionID,
+				RepoRoot:         repoRoot,
+				WorkingDirectory: deps.WorkingDirectory,
+				AccessToken:      accessToken,
+				Provider:         input.Provider,
+				Permissions:      input.Permissions,
+				PromptRunner:     runPromptRunner,
+				Progress:         newTelemetryProgress(deps.Err, verbose),
 			})
 			if err != nil {
 				if !noSession {
@@ -382,6 +385,9 @@ func (d Dependencies) withDefaults() Dependencies {
 	}
 	if d.RepoRoot == "" {
 		panic(fmt.Sprintf("%s", "repo root dependency is empty"))
+	}
+	if d.WorkingDirectory == "" {
+		d.WorkingDirectory = d.RepoRoot
 	}
 	return d
 }

@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 
@@ -50,12 +51,20 @@ func (r *LocalRunner) Run(ctx context.Context, req Request) (Result, error) {
 		if err != nil {
 			return result, fmt.Errorf("%w: %v", ErrExecution, err)
 		}
+		instruction := defaultInstruction(permissions)
+		if strings.TrimSpace(req.RepoRoot) != "" {
+			agentInstructions, err := loadAgentInstructions(req.RepoRoot, req.WorkingDirectory, repositoryInstructionReader(req.RepoRoot))
+			if err != nil {
+				return result, fmt.Errorf("%w: load AGENTS.md instructions: %v", ErrExecution, err)
+			}
+			instruction = appendAgentInstructions(instruction, agentInstructions)
+		}
 		promptResult, err := runPromptRunner.RunPrompt(ctx, PromptRunRequest{
 			AccessToken: req.AccessToken,
 			Model:       req.Model,
 			Prompt:      req.Prompt,
 			SessionID:   req.SessionID,
-			Instruction: defaultInstruction(permissions),
+			Instruction: instruction,
 			Tools:       tools,
 			Progress:    req.Progress,
 		})
@@ -105,6 +114,16 @@ func (r *LocalRunner) Run(ctx context.Context, req Request) (Result, error) {
 		}
 	}
 	return result, nil
+}
+
+func repositoryInstructionReader(repoRoot string) readInstructionFile {
+	return func(path string) ([]byte, error) {
+		_, safePath, err := workspace.NormalizeRepoPath(repoRoot, path)
+		if err != nil {
+			return nil, err
+		}
+		return os.ReadFile(safePath)
+	}
 }
 
 type writeFileArgs struct {
