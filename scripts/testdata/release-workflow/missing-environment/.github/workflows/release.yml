@@ -1,0 +1,12 @@
+name: Missing release environment fixture
+
+jobs:
+  update-homebrew:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - name: Publish Homebrew formula
+        uses: ./.github/actions/update-homebrew
+        with:
+          version: 0.1.0
+          tap-token: ${{ secrets.TAP_GITHUB_TOKEN }}

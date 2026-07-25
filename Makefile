@@ -45,6 +45,7 @@ test-e2e: ## Run end-to-end CLI tests.
 test-release: ## Run release, commit-policy, and Homebrew packaging tests.
 	bash ./scripts/validate-commit-message.test.sh
 	bash ./scripts/release-plan.test.sh
+	bash ./scripts/release-workflow.test.sh
 	bash ./scripts/render-homebrew-formula.test.sh
 	bash ./scripts/package-release.test.sh
 	@set -e; for file in scripts/*.sh .githooks/*; do bash -n "$$file"; done
