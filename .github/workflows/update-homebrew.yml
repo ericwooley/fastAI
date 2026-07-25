@@ -7,10 +7,6 @@ on:
         description: Plain semantic version tag to publish
         required: true
         type: string
-    secrets:
-      TAP_GITHUB_TOKEN:
-        description: Token with Contents write access to ericwooley/homebrew-apps
-        required: false
   workflow_dispatch:
     inputs:
       version:
@@ -30,6 +26,7 @@ jobs:
     name: Publish fastAI formula
     runs-on: macos-latest
     timeout-minutes: 20
+    environment: release
     env:
       VERSION: ${{ inputs.version }}
 
@@ -39,7 +36,7 @@ jobs:
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
         run: |
           if [[ -z "$TAP_GITHUB_TOKEN" ]]; then
-            printf 'TAP_GITHUB_TOKEN is required to update ericwooley/homebrew-apps.\n' >&2
+            printf 'TAP_GITHUB_TOKEN must be set as a secret on the release environment in ericwooley/fastAI.\n' >&2
             exit 1
           fi
 

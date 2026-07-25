@@ -107,6 +107,7 @@ jobs:
     if: needs.plan-release.outputs.release_required == 'true' && github.repository == 'ericwooley/fastAI'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    environment: release
     permissions:
       contents: write
 
@@ -143,5 +144,3 @@ jobs:
       contents: read
     with:
       version: ${{ needs.plan-release.outputs.next_version }}
-    secrets:
-      TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}

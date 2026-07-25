@@ -273,7 +273,7 @@ Every push to `main` plans a release from the Conventional Commits since the lat
 3. publishes the plain semantic-version tag and GitHub release with generated notes and SHA-256 checksums;
 4. renders, installs, and tests `Formula/fastai.rb`, then updates `ericwooley/homebrew-apps`.
 
-The Homebrew update needs an Actions secret named `TAP_GITHUB_TOKEN` in `ericwooley/fastAI`. Use a fine-grained personal access token limited to `ericwooley/homebrew-apps` with **Contents: Read and write**. If only the tap update needs to be retried, run **Update Homebrew** with the existing plain version such as `0.1.0`. To rebuild or repair a partial GitHub release, run **Release** with that existing plain version; the workflow rebuilds the tagged source, replaces the release assets, and retries Homebrew.
+Publishing GitHub releases and updating Homebrew run in the `release` environment. In `ericwooley/fastAI`, create that environment under **Settings → Environments**, then add `TAP_GITHUB_TOKEN` as an environment secret. Use a fine-grained personal access token limited to `ericwooley/homebrew-apps` with **Contents: Read and write**. If only the tap update needs to be retried, run **Update Homebrew** with the existing plain version such as `0.1.0`. To rebuild or repair a partial GitHub release, run **Release** with that existing plain version; the workflow rebuilds the tagged source, replaces the release assets, and retries Homebrew.
 
 ## Project Structure
 
