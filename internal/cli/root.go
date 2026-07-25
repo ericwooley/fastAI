@@ -26,6 +26,7 @@ type Dependencies struct {
 	Out              io.Writer
 	Err              io.Writer
 	In               io.Reader
+	Version          string
 	AuthStore        auth.Store
 	Authenticator    auth.Authenticator
 	SessionService   *appsession.Service
@@ -64,6 +65,7 @@ func DefaultDependencies(out io.Writer, errw io.Writer) Dependencies {
 		Out:            out,
 		Err:            errw,
 		In:             os.Stdin,
+		Version:        "dev",
 		AuthStore:      auth.NewFileStore(filepath.Join(configDir, "auth.json")),
 		Authenticator:  authenticator,
 		SessionService: appsession.NewService(sessionStore, now),
@@ -105,6 +107,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "fastAI --provider <provider> --model <model> [--session <identifier>] [--globalSession] [--history [count]] <prompt>",
 		Short:         "Run an autonomous coding agent",
+		Version:       deps.Version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          cobra.ArbitraryArgs,
@@ -358,6 +361,9 @@ func (d Dependencies) withDefaults() Dependencies {
 	}
 	if d.In == nil {
 		d.In = os.Stdin
+	}
+	if d.Version == "" {
+		d.Version = "dev"
 	}
 	if d.AuthStore == nil || d.Authenticator == nil || d.SessionService == nil || d.Runner == nil {
 		defaults := DefaultDependencies(d.Out, d.Err)

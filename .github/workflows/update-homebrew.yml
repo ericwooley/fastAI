@@ -1,0 +1,123 @@
+name: Update Homebrew
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Plain semantic version tag to publish
+        required: true
+        type: string
+    secrets:
+      TAP_GITHUB_TOKEN:
+        description: Token with Contents write access to ericwooley/homebrew-apps
+        required: false
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing plain semantic version tag to publish
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-homebrew
+  cancel-in-progress: false
+
+jobs:
+  update-homebrew:
+    name: Publish fastAI formula
+    runs-on: macos-latest
+    timeout-minutes: 20
+    env:
+      VERSION: ${{ inputs.version }}
+
+    steps:
+      - name: Require Homebrew tap token
+        env:
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: |
+          if [[ -z "$TAP_GITHUB_TOKEN" ]]; then
+            printf 'TAP_GITHUB_TOKEN is required to update ericwooley/homebrew-apps.\n' >&2
+            exit 1
+          fi
+
+      - name: Checkout publishing tools
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Download release archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist
+          gh release download "v$VERSION" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern 'fastAI_*' \
+            --pattern 'checksums.txt' \
+            --dir dist
+
+      - name: Verify release checksums
+        working-directory: dist
+        run: shasum -a 256 -c checksums.txt
+
+      - name: Checkout Homebrew tap
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: ericwooley/homebrew-apps
+          ref: main
+          path: homebrew-apps
+          token: ${{ secrets.TAP_GITHUB_TOKEN }}
+          persist-credentials: false
+
+      - name: Render Homebrew formula
+        run: bash ./scripts/render-homebrew-formula.sh "$VERSION" dist/checksums.txt homebrew-apps/Formula/fastai.rb
+
+      - name: Validate Homebrew formula
+        run: |
+          ruby -c homebrew-apps/Formula/fastai.rb
+
+          TAP_ROOT="$(brew --repository)/Library/Taps/ericwooley"
+          TAP_PATH="$TAP_ROOT/homebrew-apps"
+          if [[ -e "$TAP_PATH" ]]; then
+            printf 'Unexpected pre-existing Homebrew tap path: %s\n' "$TAP_PATH" >&2
+            exit 1
+          fi
+
+          mkdir -p "$TAP_ROOT"
+          ln -s "$GITHUB_WORKSPACE/homebrew-apps" "$TAP_PATH"
+          trap 'rm -f "$TAP_PATH"' EXIT
+
+          HOMEBREW_NO_AUTO_UPDATE=1 brew style --formula ericwooley/apps/fastai
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install --formula ericwooley/apps/fastai
+          HOMEBREW_NO_AUTO_UPDATE=1 brew test ericwooley/apps/fastai
+
+          rm -f "$TAP_PATH"
+          trap - EXIT
+
+      - name: Commit Homebrew formula
+        working-directory: homebrew-apps
+        run: |
+          if [[ -z "$(git status --porcelain -- Formula/fastai.rb)" ]]; then
+            printf 'Homebrew formula already matches fastAI %s.\n' "$VERSION"
+            printf 'FORMULA_CHANGED=false\n' >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          git add Formula/fastai.rb
+          git \
+            -c user.name='github-actions[bot]' \
+            -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -m "chore: update fastAI to ${VERSION}"
+          printf 'FORMULA_CHANGED=true\n' >> "$GITHUB_ENV"
+
+      - name: Push Homebrew formula
+        if: env.FORMULA_CHANGED == 'true'
+        working-directory: homebrew-apps
+        env:
+          GH_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: |
+          gh auth setup-git
+          git push origin HEAD:main

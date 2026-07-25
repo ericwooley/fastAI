@@ -23,6 +23,7 @@ vendor/
 
 # Local temporary files
 tmp/
+dist/
 *.tmp
 *.swp
 .DS_Store

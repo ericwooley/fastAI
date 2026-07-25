@@ -1,0 +1,147 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing plain version to rebuild and repair; leave empty to plan a new release
+        required: false
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  plan-release:
+    name: Plan semantic release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      release_required: ${{ steps.plan.outputs.release_required }}
+      current_version: ${{ steps.plan.outputs.current_version }}
+      release_type: ${{ steps.plan.outputs.release_type }}
+      next_version: ${{ steps.plan.outputs.next_version }}
+      release_ref: ${{ steps.plan.outputs.release_ref }}
+
+    steps:
+      - name: Checkout repository history
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Plan release from Conventional Commits
+        id: plan
+        env:
+          REPAIR_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ -n "$REPAIR_VERSION" ]]; then
+            if [[ ! "$REPAIR_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              printf 'Repair version must be plain semantic version x.y.z: %s\n' "$REPAIR_VERSION" >&2
+              exit 2
+            fi
+            if ! git rev-parse --verify --quiet "refs/tags/v${REPAIR_VERSION}^{commit}" >/dev/null; then
+              printf 'Repair tag does not exist: v%s\n' "$REPAIR_VERSION" >&2
+              exit 2
+            fi
+            {
+              printf 'release_required=true\n'
+              printf 'current_version=%s\n' "$REPAIR_VERSION"
+              printf 'release_type=repair\n'
+              printf 'next_version=%s\n' "$REPAIR_VERSION"
+              printf 'release_ref=refs/tags/v%s\n' "$REPAIR_VERSION"
+            } >> "$GITHUB_OUTPUT"
+          else
+            bash ./scripts/plan-release.sh >> "$GITHUB_OUTPUT"
+            printf 'release_ref=%s\n' "$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-release:
+    name: Build and test release
+    needs: plan-release
+    if: needs.plan-release.outputs.release_required == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.plan-release.outputs.release_ref }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+
+      - name: Validate
+        run: make check
+
+      - name: Build release archives
+        run: bash ./scripts/package-release.sh "${{ needs.plan-release.outputs.next_version }}"
+
+      - name: Upload release archives
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: fastAI-release-${{ needs.plan-release.outputs.next_version }}
+          path: dist
+          if-no-files-found: error
+          retention-days: 7
+
+  publish-release:
+    name: Publish GitHub release
+    needs:
+      - plan-release
+      - build-release
+    if: needs.plan-release.outputs.release_required == 'true' && github.repository == 'ericwooley/fastAI'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download release archives
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: fastAI-release-${{ needs.plan-release.outputs.next_version }}
+          path: dist
+
+      - name: Verify release checksums
+        working-directory: dist
+        run: sha256sum -c checksums.txt
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          tag_name: v${{ needs.plan-release.outputs.next_version }}
+          name: fastAI ${{ needs.plan-release.outputs.next_version }}
+          target_commitish: ${{ needs.plan-release.outputs.release_ref }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          overwrite_files: true
+          files: dist/*
+
+  update-homebrew:
+    name: Update Homebrew formula
+    needs:
+      - plan-release
+      - publish-release
+    if: needs.plan-release.outputs.release_required == 'true' && github.repository == 'ericwooley/fastAI'
+    uses: ./.github/workflows/update-homebrew.yml
+    permissions:
+      contents: read
+    with:
+      version: ${{ needs.plan-release.outputs.next_version }}
+    secrets:
+      TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}

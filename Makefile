@@ -8,7 +8,7 @@ GO_BUILD_FLAGS ?= -trimpath -ldflags "-s -w"
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build install run login test test-unit test-integration test-e2e fmt vet check clean
+.PHONY: help build install run login test test-unit test-integration test-e2e test-release fmt fmt-check vet check pre-commit install-hooks clean
 
 help: ## Show available make targets.
 	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target>\n\nTargets:\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -42,13 +42,33 @@ test-integration: ## Run integration tests.
 test-e2e: ## Run end-to-end CLI tests.
 	go test ./test/e2e/...
 
+test-release: ## Run release, commit-policy, and Homebrew packaging tests.
+	bash ./scripts/validate-commit-message.test.sh
+	bash ./scripts/release-plan.test.sh
+	bash ./scripts/render-homebrew-formula.test.sh
+	bash ./scripts/package-release.test.sh
+	@set -e; for file in scripts/*.sh .githooks/*; do bash -n "$$file"; done
+
 fmt: ## Format Go code.
 	go fmt ./...
+
+fmt-check: ## Verify Go formatting without changing files.
+	@unformatted="$$(gofmt -l $$(find cmd internal test -type f -name '*.go' -print))"; \
+	if [ -n "$$unformatted" ]; then \
+		printf 'Go files need formatting:\n%s\n' "$$unformatted" >&2; \
+		exit 1; \
+	fi
 
 vet: ## Run Go static analysis.
 	go vet ./...
 
-check: fmt vet test ## Format, vet, and test the full project.
+check: fmt-check vet test test-release ## Verify formatting, vet, and run all tests.
+
+pre-commit: fmt-check test-unit ## Run the fast checks enforced by the pre-commit hook.
+	git diff --check --cached
+
+install-hooks: ## Install this repository's pre-commit and commit-msg hooks.
+	./scripts/install-git-hooks.sh
 
 clean: ## Remove local build artifacts.
 	rm -rf $(BIN_DIR)
