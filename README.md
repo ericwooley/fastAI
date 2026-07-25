@@ -279,6 +279,7 @@ Publishing GitHub releases and updating Homebrew run in the `release` environmen
 
 ```
 cmd/fastAI/          CLI entrypoint
+.github/actions/     Shared Homebrew publishing action
 .github/workflows/   CI, semantic releases, and Homebrew publishing
 internal/
   agent/             Agent runner, ADK tools, GitHub Copilot adapter

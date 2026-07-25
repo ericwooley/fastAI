@@ -139,8 +139,23 @@ jobs:
       - plan-release
       - publish-release
     if: needs.plan-release.outputs.release_required == 'true' && github.repository == 'ericwooley/fastAI'
-    uses: ./.github/workflows/update-homebrew.yml
+    runs-on: macos-latest
+    timeout-minutes: 20
+    environment: release
+    concurrency:
+      group: update-homebrew
+      cancel-in-progress: false
     permissions:
       contents: read
-    with:
-      version: ${{ needs.plan-release.outputs.next_version }}
+
+    steps:
+      - name: Checkout publishing tools
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Publish Homebrew formula
+        uses: ./.github/actions/update-homebrew
+        with:
+          version: ${{ needs.plan-release.outputs.next_version }}
+          tap-token: ${{ secrets.TAP_GITHUB_TOKEN }}

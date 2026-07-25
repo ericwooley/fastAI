@@ -1,0 +1,7 @@
+name: Reusable Homebrew publisher fixture
+
+jobs:
+  update-homebrew:
+    uses: ./.github/workflows/update-homebrew.yml
+    with:
+      version: 0.1.0
